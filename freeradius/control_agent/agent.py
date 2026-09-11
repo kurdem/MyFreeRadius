@@ -229,22 +229,29 @@ class RadiusController:
         deletes = deletes or []
         with self._lock:
             snap = self._snapshot(files, deletes)
-            # 1. Validate the whole bundle first.
-            self._write_bundle(files, deletes)
-            rc, out = self._run_check(["-XC"])
-            if rc != 0:
+            try:
+                # 1. Validate the whole bundle first.
+                self._write_bundle(files, deletes)
+                rc, out = self._run_check(["-XC"])
+                if rc != 0:
+                    self._restore(snap)
+                    return False, "Validation failed:\n" + mask(out)
+
+                # 2. Reload (restart) with the new bundle in place.
+                ok = self._restart_locked()
+                if ok:
+                    return True, "Configuration applied and FreeRADIUS reloaded."
+
+                # 3. Reload failed -> roll the whole bundle back and restart.
                 self._restore(snap)
-                return False, "Validation failed:\n" + mask(out)
-
-            # 2. Reload (restart) with the new bundle in place.
-            ok = self._restart_locked()
-            if ok:
-                return True, "Configuration applied and FreeRADIUS reloaded."
-
-            # 3. Reload failed -> roll the whole bundle back and restart.
-            self._restore(snap)
-            self._restart_locked()
-            return False, "Reload failed; rolled back to the previous configuration."
+                self._restart_locked()
+                return False, "Reload failed; rolled back to the previous configuration."
+            except Exception:
+                # Any error mid-write (e.g. permissions) -> restore the snapshot
+                # so we never leave a half-written bundle behind, then re-raise
+                # for the HTTP layer to report.
+                self._restore(snap)
+                raise
 
     # -- logs --------------------------------------------------------------- #
     def tail_log(self, limit: int) -> dict:
@@ -378,7 +385,11 @@ class Handler(BaseHTTPRequestHandler):
                 })
         except ValueError as exc:
             # Rejected path (allow-list violation) etc.
-            return self._send(400, {"detail": str(exc)})
+            return self._send(400, {"detail": mask(str(exc))})
+        except Exception as exc:  # noqa: BLE001 - never drop the connection
+            # e.g. PermissionError writing config. Return a readable error to the
+            # UI instead of disconnecting, and keep the agent serving.
+            return self._send(500, {"detail": mask(f"{type(exc).__name__}: {exc}")})
         return self._send(404, {"detail": "not found"})
 
 

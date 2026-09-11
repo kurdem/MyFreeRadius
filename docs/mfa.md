@@ -43,6 +43,10 @@ without an enrolled token is rejected.
    Authenticator, …) — or type the manual key.
 3. Enter a current 6-digit code → **Confirm**. The token is now active.
 
+The name shown next to the account in the authenticator app (the "issuer") is
+configurable under **Branding → OTP issuer** — set it to your company name or a
+label. It defaults to `FreeRADIUS Manager` and applies to new enrollments.
+
 ## Enable it
 
 1. **MFA** page → **Enable MFA**, choose the mode, **Save**.

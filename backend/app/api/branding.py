@@ -42,6 +42,7 @@ def get_branding(db: Session = Depends(get_db)):
     b = _get(db)
     return {
         "app_title": b.app_title if b else _DEFAULT_TITLE,
+        "otp_issuer": (b.otp_issuer if b and b.otp_issuer else _DEFAULT_TITLE),
         "has_logo": bool(b and b.logo),
     }
 
@@ -60,6 +61,7 @@ def get_logo(db: Session = Depends(get_db)):
 async def update_branding(
     request: Request,
     app_title: str = Form(""),
+    otp_issuer: str = Form(""),
     logo: UploadFile | None = File(default=None),
     remove_logo: bool = Form(False),
     db: Session = Depends(get_db),
@@ -67,11 +69,14 @@ async def update_branding(
 ):
     b = _get(db)
     if b is None:
-        b = BrandingConfig(id=1, app_title=_DEFAULT_TITLE)
+        b = BrandingConfig(id=1, app_title=_DEFAULT_TITLE, otp_issuer=_DEFAULT_TITLE)
         db.add(b)
 
     if app_title.strip():
         b.app_title = app_title.strip()[:120]
+
+    if otp_issuer.strip():
+        b.otp_issuer = otp_issuer.strip()[:120]
 
     if remove_logo:
         b.logo = None
@@ -94,4 +99,4 @@ async def update_branding(
         db, username=user.username, action="UPDATE_BRANDING",
         source_ip=request.client.host if request.client else None,
     )
-    return {"app_title": b.app_title, "has_logo": bool(b.logo)}
+    return {"app_title": b.app_title, "otp_issuer": b.otp_issuer, "has_logo": bool(b.logo)}

@@ -13,14 +13,16 @@ import { api, errorMessage } from "../api/client";
 
 export default function Branding() {
   const [title, setTitle] = useState("");
+  const [otpIssuer, setOtpIssuer] = useState("");
   const [hasLogo, setHasLogo] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [msg, setMsg] = useState<{ s: "success" | "error"; t: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = () =>
-    api.get<{ app_title: string; has_logo: boolean }>("/branding").then((r) => {
+    api.get<{ app_title: string; otp_issuer: string; has_logo: boolean }>("/branding").then((r) => {
       setTitle(r.data.app_title);
+      setOtpIssuer(r.data.otp_issuer);
       setHasLogo(r.data.has_logo);
     });
 
@@ -34,6 +36,7 @@ export default function Branding() {
     try {
       const form = new FormData();
       form.append("app_title", title);
+      form.append("otp_issuer", otpIssuer);
       if (removeLogo) form.append("remove_logo", "true");
       else if (file) form.append("logo", file);
       await api.put("/branding", form);
@@ -52,12 +55,18 @@ export default function Branding() {
       <Alert severity="info" sx={{ mb: 2 }}>
         Set a custom application title and logo. They appear in the top bar and on
         the login page. Upload your own logo (PNG, JPEG, GIF, WEBP or SVG, max 2 MB).
+        The OTP issuer is the name shown in the authenticator app (e.g. your company
+        name) for new MFA enrollments.
       </Alert>
       {msg && <Alert severity={msg.s} sx={{ mb: 2 }}>{msg.t}</Alert>}
 
       <Paper sx={{ p: 3, maxWidth: 560 }}>
         <TextField label="Application title" fullWidth value={title}
           onChange={(e) => setTitle(e.target.value)} sx={{ mb: 2 }} />
+
+        <TextField label="OTP issuer (authenticator app name)" fullWidth value={otpIssuer}
+          onChange={(e) => setOtpIssuer(e.target.value)} sx={{ mb: 2 }}
+          helperText="Shown in Google/Microsoft Authenticator etc. Applies to new enrollments." />
 
         {hasLogo && (
           <Box sx={{ mb: 2 }}>

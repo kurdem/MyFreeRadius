@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ADConfig, MfaEnrollmentToken, User, UserTotp
+from app.models import ADConfig, BrandingConfig, MfaEnrollmentToken, User, UserTotp
 from app.schemas.mfa import (
     ConfirmRequest,
     EnrollRequest,
@@ -23,13 +23,19 @@ from app.services import audit, totp_service
 
 router = APIRouter(prefix="/mfa", tags=["mfa"])
 
-_ISSUER = "FreeRADIUS Manager"
+_DEFAULT_ISSUER = "FreeRADIUS Manager"
 _LINK_TTL_HOURS = 24
 _MAX_CONFIRM_ATTEMPTS = 10
 
 
 def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
+
+
+def _issuer(db: Session) -> str:
+    """Issuer label shown in the authenticator app (configurable via Branding)."""
+    b = db.get(BrandingConfig, 1)
+    return (b.otp_issuer if b and b.otp_issuer else _DEFAULT_ISSUER)
 
 
 @router.get("/settings", response_model=MfaSettings)
@@ -92,7 +98,7 @@ def enroll(
     return EnrollResponse(
         username=payload.username.lower(),
         secret=secret,
-        otpauth_uri=totp_service.provisioning_uri(secret, payload.username, _ISSUER),
+        otpauth_uri=totp_service.provisioning_uri(secret, payload.username, _issuer(db)),
     )
 
 
@@ -211,7 +217,7 @@ def self_enroll_info(token: str, db: Session = Depends(get_db)):
     return SelfEnrollInfo(
         username=row.username,
         secret=secret,
-        otpauth_uri=totp_service.provisioning_uri(secret, row.username, _ISSUER),
+        otpauth_uri=totp_service.provisioning_uri(secret, row.username, _issuer(db)),
     )
 
 

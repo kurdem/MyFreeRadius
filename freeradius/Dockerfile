@@ -26,11 +26,20 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 ENV RADDB_DIR=/etc/raddb \
     RADIUS_LOG_FILE=/var/log/radius/radius.log \
     RADIUS_AGENT_PORT=8000
-RUN chmod +x /usr/local/bin/entrypoint.sh \
- && mkdir -p /var/log/radius /opt/agent \
- && printf '# Managed by FreeRADIUS Manager\n' > /etc/raddb/clients.conf \
- && touch /var/log/radius/radius.log \
- && chown -R freerad:freerad /etc/raddb /var/log/radius /opt/agent
+# Make the config tree writable by the non-root 'freerad' user the agent runs
+# as. /etc/raddb (and its mods-enabled/sites-enabled dirs) may be symlinks in the
+# base image, so resolve the real path and chown/chmod it, and ensure the managed
+# directories exist and are owned by freerad. The agent writes clients.conf,
+# mods-enabled/ldap, sites-enabled/manager and mods-config/manager_authorize.
+RUN set -eux; \
+    RD="$(readlink -f /etc/raddb)"; \
+    mkdir -p "$RD/mods-enabled" "$RD/sites-enabled" "$RD/mods-config" \
+             /var/log/radius /opt/agent; \
+    printf '# Managed by FreeRADIUS Manager\n' > "$RD/clients.conf"; \
+    touch /var/log/radius/radius.log; \
+    chmod +x /usr/local/bin/entrypoint.sh; \
+    chown -Rh freerad:freerad "$RD" /var/log/radius /opt/agent; \
+    chmod -R u+rwX "$RD" /var/log/radius
 
 USER freerad
 

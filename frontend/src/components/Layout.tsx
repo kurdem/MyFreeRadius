@@ -27,6 +27,7 @@ import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import PolicyIcon from "@mui/icons-material/Policy";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import ScienceIcon from "@mui/icons-material/Science";
+import PeopleIcon from "@mui/icons-material/People";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useAuth } from "../auth/AuthContext";
 
@@ -37,6 +38,7 @@ interface NavItem {
   to: string;
   icon: ReactNode;
   soon?: boolean;
+  adminOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -52,10 +54,11 @@ const navItems: NavItem[] = [
   { label: "Test Auth", to: "/test-auth", icon: <ScienceIcon /> },
   { label: "Certificates", to: "/certificates", icon: <VerifiedUserIcon /> },
   { label: "Backup", to: "/backup", icon: <BackupIcon /> },
+  { label: "Users", to: "/users", icon: <PeopleIcon />, adminOnly: true },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -68,7 +71,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       </Toolbar>
       <Divider />
       <List>
-        {navItems.map((item) => (
+        {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => (
           <ListItemButton
             key={item.to}
             component={RouterLink}

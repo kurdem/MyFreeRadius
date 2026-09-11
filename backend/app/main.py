@@ -21,6 +21,7 @@ from app.api import (
     mfa,
     radius,
     setup,
+    users,
 )
 from app.config import get_settings
 from app.logging_conf import configure_logging
@@ -104,5 +105,6 @@ app.include_router(mfa.router, prefix=API)
 app.include_router(radius.router, prefix=API)
 app.include_router(backup.router, prefix=API)
 app.include_router(setup.router, prefix=API)
+app.include_router(users.router, prefix=API)
 app.include_router(logs.router, prefix=API)
 app.include_router(health.router, prefix=API)

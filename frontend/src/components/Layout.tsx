@@ -21,6 +21,7 @@ import GroupWorkIcon from "@mui/icons-material/GroupWork";
 import SettingsEthernetIcon from "@mui/icons-material/SettingsEthernet";
 import ArticleIcon from "@mui/icons-material/Article";
 import DomainIcon from "@mui/icons-material/Domain";
+import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import PolicyIcon from "@mui/icons-material/Policy";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import ScienceIcon from "@mui/icons-material/Science";
@@ -43,6 +44,7 @@ const navItems: NavItem[] = [
   { label: "Configuration", to: "/configuration", icon: <SettingsEthernetIcon /> },
   { label: "Logs", to: "/logs", icon: <ArticleIcon /> },
   { label: "Active Directory", to: "/active-directory", icon: <DomainIcon /> },
+  { label: "MFA", to: "/mfa", icon: <VpnKeyIcon /> },
   { label: "Policies", to: "/policies", icon: <PolicyIcon />, soon: true },
   { label: "Certificates", to: "/certificates", icon: <VerifiedUserIcon />, soon: true },
   { label: "Test Auth", to: "/test-auth", icon: <ScienceIcon />, soon: true },

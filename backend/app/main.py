@@ -9,7 +9,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import __version__
-from app.api import active_directory, auth, clients, configuration, health, logs
+from app.api import (
+    active_directory,
+    auth,
+    clients,
+    configuration,
+    health,
+    logs,
+    mfa,
+    radius,
+)
 from app.config import get_settings
 from app.logging_conf import configure_logging
 from app.security.crypto import SecretCryptoError
@@ -87,5 +96,7 @@ app.include_router(clients.router, prefix=API)
 app.include_router(clients.group_router, prefix=API)
 app.include_router(configuration.router, prefix=API)
 app.include_router(active_directory.router, prefix=API)
+app.include_router(mfa.router, prefix=API)
+app.include_router(radius.router, prefix=API)
 app.include_router(logs.router, prefix=API)
 app.include_router(health.router, prefix=API)

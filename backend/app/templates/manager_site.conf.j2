@@ -2,21 +2,11 @@
 # =============================================================================
 # Virtual server "manager" - generated [[ generated_at ]]
 # Authenticates RADIUS users against Active Directory via LDAP (PAP bind) and
-# authorizes based on AD group membership. Replaces the stock "default" site
-# while AD is enabled. Managed by FreeRADIUS Manager.
+# authorizes based on AD group membership. Clients are routed here via
+# `virtual_server = manager`; the stock "default" site keeps the listeners.
+# Managed by FreeRADIUS Manager.
 # =============================================================================
 server manager {
-    listen {
-        type = auth
-        ipaddr = *
-        port = 1812
-    }
-    listen {
-        type = acct
-        ipaddr = *
-        port = 1813
-    }
-
     authorize {
         preprocess
 

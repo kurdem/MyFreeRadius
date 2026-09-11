@@ -35,8 +35,9 @@ VMware Horizon Connection Server  ──RADIUS/1812──▶  FreeRADIUS  ──
 | Dashboard + health/readiness endpoints | ✅ |
 | Active Directory config + **real** LDAP(S) connection test + allowed groups | ✅ (Phase 3, slice 1) |
 | FreeRADIUS ↔ AD auth wiring: generated `ldap` module + `manager` virtual server (PAP bind) + AD group authorization | ✅ (Phase 3, slice 2) |
+| **TOTP MFA**: per-user enrollment (QR), FreeRADIUS delegates via `rlm_rest`, `totp_only` / `ad_password_plus_totp` modes | ✅ (Phase 4) |
 | Certificate management | ⏳ Phase 3 |
-| End-to-end "Test Authentication" | ⏳ Phase 4 |
+| End-to-end "Test Authentication" | ⏳ later |
 | End-to-end "Test Authentication" | ⏳ Phase 4 |
 | Backup / restore, monitoring/metrics | ⏳ Phase 5–6 |
 
@@ -138,7 +139,8 @@ python freeradius/control_agent/test_agent.py   # control-agent logic (fake radi
 - [Architecture](docs/architecture.md)
 - [Installation](docs/installation.md)
 - [VMware Horizon integration](docs/horizon.md)
-- [Active Directory (roadmap / Phase 3)](docs/active-directory.md)
+- [Active Directory](docs/active-directory.md)
+- [Multi-Factor Authentication (TOTP)](docs/mfa.md)
 - [Security](docs/security.md)
 - [Troubleshooting](docs/troubleshooting.md)
 

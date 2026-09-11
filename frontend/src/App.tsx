@@ -9,6 +9,7 @@ import ClientGroups from "./pages/ClientGroups";
 import Configuration from "./pages/Configuration";
 import Logs from "./pages/Logs";
 import ActiveDirectory from "./pages/ActiveDirectory";
+import Mfa from "./pages/Mfa";
 import ComingSoon from "./pages/ComingSoon";
 import type { ReactNode } from "react";
 
@@ -35,6 +36,7 @@ export default function App() {
       <Route path="/configuration" element={<Protected><Configuration /></Protected>} />
       <Route path="/logs" element={<Protected><Logs /></Protected>} />
       <Route path="/active-directory" element={<Protected><ActiveDirectory /></Protected>} />
+      <Route path="/mfa" element={<Protected><Mfa /></Protected>} />
       <Route
         path="/policies"
         element={

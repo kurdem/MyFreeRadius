@@ -42,11 +42,18 @@ AGENT_PORT = int(os.environ.get("RADIUS_AGENT_PORT", "8000"))
 ALLOWED_WRITE_PATHS = {
     "clients.conf",
     "mods-enabled/ldap",
+    "mods-enabled/rest",
     "sites-enabled/manager",
     "mods-config/manager_authorize",
 }
+# Managed files we may remove when switching modes. We never touch the stock
+# "default" site: clients are routed to the "manager" server via
+# `virtual_server = manager` instead, so nothing needs deleting to stay safe.
 ALLOWED_DELETE_PATHS = {
-    "sites-enabled/default",
+    "mods-enabled/ldap",
+    "mods-enabled/rest",
+    "sites-enabled/manager",
+    "mods-config/manager_authorize",
 }
 
 # Mask anything that looks like a secret before it leaves the agent.

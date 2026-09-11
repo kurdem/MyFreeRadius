@@ -13,9 +13,26 @@ def test_default_branding_public(client):
     r = client.get("/api/v1/branding")
     assert r.status_code == 200
     assert r.json()["app_title"] == "FreeRADIUS Manager"
+    assert r.json()["otp_issuer"] == "FreeRADIUS Manager"
     assert r.json()["has_logo"] is False
     # No logo yet.
     assert client.get("/api/v1/branding/logo").status_code == 404
+
+
+def test_set_otp_issuer_used_by_mfa(admin_client):
+    r = admin_client.put(
+        "/api/v1/branding",
+        data={"otp_issuer": "ACME Corp"},
+        headers=admin_client.csrf_headers,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["otp_issuer"] == "ACME Corp"
+
+    # A new enrollment must embed the configured issuer in the otpauth URI.
+    enr = admin_client.post("/api/v1/mfa/enroll", json={"username": "alice"},
+                            headers=admin_client.csrf_headers)
+    assert enr.status_code == 200, enr.text
+    assert "issuer=ACME%20Corp" in enr.json()["otpauth_uri"]
 
 
 def test_set_title_and_logo(admin_client, client):

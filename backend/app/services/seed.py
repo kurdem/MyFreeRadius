@@ -25,6 +25,9 @@ _ADDED_COLUMNS: dict[str, list[tuple[str, str]]] = {
         ("mfa_enabled", "BOOLEAN NOT NULL DEFAULT {false}"),
         ("mfa_mode", "VARCHAR(32) NOT NULL DEFAULT 'totp_only'"),
     ],
+    "branding": [
+        ("otp_issuer", "VARCHAR(120) NOT NULL DEFAULT 'FreeRADIUS Manager'"),
+    ],
 }
 
 

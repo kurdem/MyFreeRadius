@@ -28,7 +28,7 @@ from app.database import get_db
 from app.models import User
 from app.schemas.mfa import TestAuthRequest, TestAuthResult
 from app.security.deps import require_operator
-from app.services import audit, radius_agent, radius_auth
+from app.services import audit, metrics, radius_agent, radius_auth
 from app.services.radius_agent import AgentError
 
 router = APIRouter(prefix="/radius", tags=["radius"])
@@ -52,6 +52,7 @@ def test_authentication(
     except AgentError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
     accepted = result.get("result") == "Access-Accept"
+    metrics.TEST_TOTAL.labels(result="accept" if accepted else "reject").inc()
     audit.record(
         db, username=user.username, action="RADIUS_TEST",
         object_ref=payload.username,
@@ -164,6 +165,7 @@ async def authorize(
         return {"result": "reject", "reason": "missing username"}
 
     accept, reason = radius_auth.authorize(db, username, password)
+    metrics.AUTH_TOTAL.labels(result="accept" if accept else "reject").inc()
     audit.record(
         db, username=username, action="RADIUS_AUTHORIZE",
         source_ip=request.client.host if request.client else None,

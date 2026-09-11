@@ -29,6 +29,7 @@ import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import ScienceIcon from "@mui/icons-material/Science";
 import PeopleIcon from "@mui/icons-material/People";
 import PaletteIcon from "@mui/icons-material/Palette";
+import MonitorHeartIcon from "@mui/icons-material/MonitorHeart";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useAuth } from "../auth/AuthContext";
 import { useBranding } from "../branding/useBranding";
@@ -56,6 +57,7 @@ const navItems: NavItem[] = [
   { label: "Test Auth", to: "/test-auth", icon: <ScienceIcon /> },
   { label: "Certificates", to: "/certificates", icon: <VerifiedUserIcon /> },
   { label: "Backup", to: "/backup", icon: <BackupIcon /> },
+  { label: "Monitoring", to: "/monitoring", icon: <MonitorHeartIcon /> },
   { label: "Users", to: "/users", icon: <PeopleIcon />, adminOnly: true },
   { label: "Branding", to: "/branding", icon: <PaletteIcon />, adminOnly: true },
 ];

@@ -40,9 +40,7 @@ VMware Horizon Connection Server  ──RADIUS/1812──▶  FreeRADIUS  ──
 | **CA certificate management** for LDAPS validation (upload, expiry warnings, applied to the test + generated LDAP config) | ✅ |
 | **Backup / restore** of the full configuration (secrets kept encrypted; optional passphrase) | ✅ (Phase 5) |
 | **Setup wizard** (guided first-run: admin → AD → Horizon client → group → activate → test) | ✅ |
-| Monitoring / metrics (Prometheus) | ⏳ |
-| End-to-end "Test Authentication" | ⏳ Phase 4 |
-| Backup / restore, monitoring/metrics | ⏳ Phase 5–6 |
+| **Monitoring / metrics**: Prometheus `/metrics`, deep `/health/detailed`, in-app Monitoring page, optional Prometheus + Grafana profile with alert rules | ✅ (Phase 6) |
 
 See [`docs/`](docs/) for architecture, security and Horizon guides.
 
@@ -145,6 +143,7 @@ python freeradius/control_agent/test_agent.py   # control-agent logic (fake radi
 - [Active Directory](docs/active-directory.md)
 - [Multi-Factor Authentication (TOTP)](docs/mfa.md)
 - [Backup & Restore](docs/backup.md)
+- [Monitoring & Metrics](docs/monitoring.md)
 - [Security](docs/security.md)
 - [Troubleshooting](docs/troubleshooting.md)
 

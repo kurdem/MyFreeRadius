@@ -20,15 +20,50 @@ import logging
 import secrets
 import urllib.parse
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
-from app.services import audit, radius_auth
+from app.models import User
+from app.schemas.mfa import TestAuthRequest, TestAuthResult
+from app.security.deps import require_operator
+from app.services import audit, radius_agent, radius_auth
+from app.services.radius_agent import AgentError
 
 router = APIRouter(prefix="/radius", tags=["radius"])
 logger = logging.getLogger("radius_auth")
+
+
+@router.post("/test", response_model=TestAuthResult)
+def test_authentication(
+    payload: TestAuthRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_operator),
+):
+    """Run a REAL Access-Request through FreeRADIUS (via the control agent).
+
+    Exercises the full server pipeline (manager site -> LDAP/rest -> AD/TOTP).
+    The password is never logged.
+    """
+    try:
+        result = radius_agent.test_auth(payload.username, payload.password)
+    except AgentError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    accepted = result.get("result") == "Access-Accept"
+    audit.record(
+        db, username=user.username, action="RADIUS_TEST",
+        object_ref=payload.username,
+        source_ip=request.client.host if request.client else None,
+        result="SUCCESS" if accepted else "FAILURE", detail=result.get("result"),
+    )
+    return TestAuthResult(
+        result=result.get("result", "unknown"),
+        duration_ms=int(result.get("duration_ms", 0)),
+        details=result.get("details"),
+        accepted=accepted,
+    )
 
 
 def _rlm_value(v):

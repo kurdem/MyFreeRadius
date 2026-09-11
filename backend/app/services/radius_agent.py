@@ -68,6 +68,15 @@ def apply_config(files: dict, deletes: list | None = None) -> dict:
     return _post("/config/apply", {"files": files, "deletes": deletes or []}, timeout=60.0)
 
 
+def test_auth(username: str, password: str) -> dict:
+    """Run a real Access-Request against the local radiusd via the agent.
+
+    Returns ``{"result": "Access-Accept"|"Access-Reject"|..., "duration_ms": int,
+    "details": str}``. The password is never logged.
+    """
+    return _post("/test-auth", {"username": username, "password": password}, timeout=30.0)
+
+
 def status() -> dict:
     """Return FreeRADIUS process/health status."""
     return _get("/status")

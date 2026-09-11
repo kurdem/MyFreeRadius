@@ -58,6 +58,8 @@ ALLOWED_DELETE_PATHS = {
 
 # Mask anything that looks like a secret before it leaves the agent.
 _SECRET_LINE_RE = re.compile(r"(?i)(secret\s*=\s*)(\S+)")
+# Redact User-Password values that radclient -x echoes in its debug output.
+_PASSWORD_RE = re.compile(r'(?i)(User-Password\s*=\s*)("[^"]*"|\S+)')
 
 
 def _radiusd_binary() -> str:
@@ -69,7 +71,8 @@ def _radiusd_binary() -> str:
 
 
 def mask(text: str) -> str:
-    return _SECRET_LINE_RE.sub(r"\1***REDACTED***", text)
+    text = _SECRET_LINE_RE.sub(r"\1***REDACTED***", text)
+    return _PASSWORD_RE.sub(r"\1***REDACTED***", text)
 
 
 class RadiusController:
@@ -260,6 +263,42 @@ class RadiusController:
                 self._restore(snap)
                 raise
 
+    # -- test authentication ------------------------------------------------ #
+    def test_auth(self, username: str, password: str) -> dict:
+        """Send a real Access-Request to the local radiusd via radclient.
+
+        Uses the built-in loopback client (secret = the agent token). The
+        password is passed on stdin, never on the command line. Returns the real
+        Access-Accept / Access-Reject outcome from the full server pipeline.
+        """
+        radclient = shutil.which("radclient")
+        if not radclient:
+            return {"result": "error", "duration_ms": 0, "details": "radclient not found in image"}
+        # Guard against attribute-line injection: no quotes/backslashes/newlines.
+        if any(c in username + password for c in ('"', "\\", "\n", "\r")):
+            return {"result": "error", "duration_ms": 0,
+                    "details": "username/password contain invalid characters"}
+
+        request = f'User-Name = "{username}", User-Password = "{password}"\n'
+        start = time.time()
+        try:
+            proc = subprocess.run(
+                [radclient, "-x", "-t", "5", "-r", "1", "127.0.0.1:1812", "auth", AGENT_TOKEN],
+                input=request, text=True, capture_output=True, timeout=20, shell=False,
+            )
+        except subprocess.TimeoutExpired:
+            return {"result": "timeout", "duration_ms": 20000,
+                    "details": "radclient timed out (no response from radiusd)"}
+        duration = int((time.time() - start) * 1000)
+        out = (proc.stdout or "") + (proc.stderr or "")
+        if "Access-Accept" in out:
+            outcome = "Access-Accept"
+        elif "Access-Reject" in out:
+            outcome = "Access-Reject"
+        else:
+            outcome = "no response"
+        return {"result": outcome, "duration_ms": duration, "details": mask(out)}
+
     # -- logs --------------------------------------------------------------- #
     def tail_log(self, limit: int) -> dict:
         # Prefer the in-memory buffer (captured from radiusd's own output).
@@ -371,6 +410,14 @@ class Handler(BaseHTTPRequestHandler):
         if not self._authorized():
             return self._send(401, {"detail": "unauthorized"})
         body = self._read_json()
+
+        if self.path == "/test-auth":
+            username = body.get("username")
+            password = body.get("password", "")
+            if not isinstance(username, str) or not isinstance(password, str):
+                return self._send(400, {"detail": "username and password (strings) required"})
+            return self._send(200, controller.test_auth(username, password))
+
         bundle = self._bundle_from_body(body)
         if bundle is None:
             return self._send(400, {"detail": "files (object) or clients_conf (string) required"})

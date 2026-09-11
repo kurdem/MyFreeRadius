@@ -56,3 +56,24 @@ class RadiusAuthRequest(BaseModel):
     username: str = Field(min_length=1, max_length=128)
     password: str = Field(default="", max_length=256)
     token: str = Field(min_length=1, max_length=256)
+
+
+class TestAuthRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=1, max_length=256)
+
+    @field_validator("username", "password")
+    @classmethod
+    def _no_control(cls, v: str) -> str:
+        # Values are placed into a radclient attribute line; reject anything that
+        # could break out of the quoted token or inject a second attribute.
+        if any(c in v for c in ('"', "\\", "\n", "\r")):
+            raise ValueError("must not contain quotes, backslashes or newlines")
+        return v
+
+
+class TestAuthResult(BaseModel):
+    result: str
+    duration_ms: int
+    details: str | None = None
+    accepted: bool = False

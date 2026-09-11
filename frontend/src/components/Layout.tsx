@@ -46,8 +46,8 @@ const navItems: NavItem[] = [
   { label: "Active Directory", to: "/active-directory", icon: <DomainIcon /> },
   { label: "MFA", to: "/mfa", icon: <VpnKeyIcon /> },
   { label: "Policies", to: "/policies", icon: <PolicyIcon />, soon: true },
+  { label: "Test Auth", to: "/test-auth", icon: <ScienceIcon /> },
   { label: "Certificates", to: "/certificates", icon: <VerifiedUserIcon />, soon: true },
-  { label: "Test Auth", to: "/test-auth", icon: <ScienceIcon />, soon: true },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {

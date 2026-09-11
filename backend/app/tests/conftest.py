@@ -80,8 +80,15 @@ def fake_agent(monkeypatch):
     def _logs(limit: int = 200):
         return {"lines": ["Access-Accept"], "count": 1}
 
+    def _test_auth(username: str, password: str):
+        # Simulate accept for a magic password, reject otherwise.
+        accept = password == "goodpass"
+        return {"result": "Access-Accept" if accept else "Access-Reject",
+                "duration_ms": 12, "details": "radclient output"}
+
     monkeypatch.setattr(radius_agent, "validate_config", _validate)
     monkeypatch.setattr(radius_agent, "apply_config", _apply)
     monkeypatch.setattr(radius_agent, "status", _status)
     monkeypatch.setattr(radius_agent, "logs", _logs)
+    monkeypatch.setattr(radius_agent, "test_auth", _test_auth)
     return state

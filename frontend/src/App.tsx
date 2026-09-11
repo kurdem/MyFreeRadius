@@ -10,6 +10,7 @@ import Configuration from "./pages/Configuration";
 import Logs from "./pages/Logs";
 import ActiveDirectory from "./pages/ActiveDirectory";
 import Mfa from "./pages/Mfa";
+import TestAuth from "./pages/TestAuth";
 import ComingSoon from "./pages/ComingSoon";
 import type { ReactNode } from "react";
 
@@ -61,18 +62,7 @@ export default function App() {
           </Protected>
         }
       />
-      <Route
-        path="/test-auth"
-        element={
-          <Protected>
-            <ComingSoon
-              title="Test Authentication"
-              phase="Phase 4"
-              description="Real end-to-end RADIUS authentication test against a client and AD-backed policy."
-            />
-          </Protected>
-        }
-      />
+      <Route path="/test-auth" element={<Protected><TestAuth /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

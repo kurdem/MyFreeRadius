@@ -38,7 +38,8 @@ VMware Horizon Connection Server  ──RADIUS/1812──▶  FreeRADIUS  ──
 | **TOTP MFA**: per-user enrollment (QR), FreeRADIUS delegates via `rlm_rest`, `totp_only` / `ad_password_plus_totp` modes | ✅ (Phase 4) |
 | **Test Authentication**: real end-to-end Access-Request through the full pipeline (via `radclient`) | ✅ |
 | **CA certificate management** for LDAPS validation (upload, expiry warnings, applied to the test + generated LDAP config) | ✅ |
-| Backup / restore, monitoring / metrics | ⏳ |
+| **Backup / restore** of the full configuration (secrets kept encrypted; optional passphrase) | ✅ (Phase 5) |
+| Monitoring / metrics, setup wizard | ⏳ |
 | End-to-end "Test Authentication" | ⏳ Phase 4 |
 | Backup / restore, monitoring/metrics | ⏳ Phase 5–6 |
 
@@ -142,6 +143,7 @@ python freeradius/control_agent/test_agent.py   # control-agent logic (fake radi
 - [VMware Horizon integration](docs/horizon.md)
 - [Active Directory](docs/active-directory.md)
 - [Multi-Factor Authentication (TOTP)](docs/mfa.md)
+- [Backup & Restore](docs/backup.md)
 - [Security](docs/security.md)
 - [Troubleshooting](docs/troubleshooting.md)
 

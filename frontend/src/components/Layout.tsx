@@ -20,6 +20,7 @@ import RouterIcon from "@mui/icons-material/Router";
 import GroupWorkIcon from "@mui/icons-material/GroupWork";
 import SettingsEthernetIcon from "@mui/icons-material/SettingsEthernet";
 import ArticleIcon from "@mui/icons-material/Article";
+import BackupIcon from "@mui/icons-material/Backup";
 import DomainIcon from "@mui/icons-material/Domain";
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import PolicyIcon from "@mui/icons-material/Policy";
@@ -48,6 +49,7 @@ const navItems: NavItem[] = [
   { label: "Policies", to: "/policies", icon: <PolicyIcon />, soon: true },
   { label: "Test Auth", to: "/test-auth", icon: <ScienceIcon /> },
   { label: "Certificates", to: "/certificates", icon: <VerifiedUserIcon /> },
+  { label: "Backup", to: "/backup", icon: <BackupIcon /> },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {

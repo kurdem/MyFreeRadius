@@ -46,6 +46,7 @@ def generate_clients_conf(db: Session, *, version: int) -> str:
             "secret": decrypt_secret(c.shared_secret_encrypted),
             "nas_type": c.nas_type,
             "description": c.description,
+            "require_message_authenticator": c.require_message_authenticator,
         }
         for c in clients
     ]

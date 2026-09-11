@@ -45,6 +45,13 @@ class RadiusClient(Base, TimestampMixin):
 
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # BlastRADIUS mitigation (CVE-2024-3596): require a Message-Authenticator on
+    # incoming requests. Recommended for clients that send it (e.g. VMware
+    # Horizon / UAG). Emitted as `require_message_authenticator = yes`.
+    require_message_authenticator: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+
     group_id: Mapped[int | None] = mapped_column(
         ForeignKey("client_groups.id", ondelete="SET NULL"), nullable=True
     )

@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""radiusctl - command line client for FreeRADIUS Manager (spec section 29).
+
+Uses the same REST API as the web interface. Standard library only.
+
+Environment:
+  RADIUSCTL_URL       Base URL (default http://localhost:8080)
+  RADIUSCTL_USER      Username (default admin)
+  RADIUSCTL_PASSWORD  Password (prompted if unset)
+
+Examples:
+  radiusctl status
+  radiusctl client list
+  radiusctl client add Horizon-CS01 --ip 10.10.20.11 --secret 's3cret...' --nas vmware
+  radiusctl config generate
+  radiusctl config validate
+  radiusctl config activate
+"""
+from __future__ import annotations
+
+import argparse
+import getpass
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+from http.cookiejar import CookieJar
+
+BASE = os.environ.get("RADIUSCTL_URL", "http://localhost:8080").rstrip("/")
+API = f"{BASE}/api/v1"
+
+
+class Client:
+    def __init__(self) -> None:
+        self.jar = CookieJar()
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self.jar)
+        )
+
+    def _csrf(self) -> str | None:
+        for cookie in self.jar:
+            if cookie.name == "radiusmgr_csrf":
+                return cookie.value
+        return None
+
+    def request(self, method: str, path: str, body: dict | None = None) -> tuple[int, object]:
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(f"{API}{path}", data=data, method=method)
+        if data is not None:
+            req.add_header("Content-Type", "application/json")
+        if method not in ("GET", "HEAD"):
+            csrf = self._csrf()
+            if csrf:
+                req.add_header("X-CSRF-Token", csrf)
+        try:
+            with self.opener.open(req, timeout=30) as resp:
+                payload = resp.read().decode()
+                return resp.status, (json.loads(payload) if payload else None)
+        except urllib.error.HTTPError as exc:
+            payload = exc.read().decode()
+            try:
+                return exc.code, json.loads(payload)
+            except ValueError:
+                return exc.code, payload
+
+    def login(self) -> None:
+        user = os.environ.get("RADIUSCTL_USER", "admin")
+        password = os.environ.get("RADIUSCTL_PASSWORD") or getpass.getpass(
+            f"Password for {user}: "
+        )
+        code, body = self.request("POST", "/auth/login",
+                                  {"username": user, "password": password})
+        if code != 200:
+            fail(f"Login failed: {body}")
+
+
+def fail(msg: str) -> None:
+    print(msg, file=sys.stderr)
+    sys.exit(1)
+
+
+def pretty(obj: object) -> None:
+    print(json.dumps(obj, indent=2))
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="radiusctl", description="FreeRADIUS Manager CLI")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("status", help="Show dashboard/status")
+
+    client = sub.add_parser("client", help="Manage RADIUS clients").add_subparsers(
+        dest="subcmd", required=True
+    )
+    client.add_parser("list", help="List clients")
+    add = client.add_parser("add", help="Add a client")
+    add.add_argument("name")
+    add.add_argument("--ip", required=True)
+    add.add_argument("--secret", required=True)
+    add.add_argument("--nas", default="vmware")
+
+    config = sub.add_parser("config", help="Configuration lifecycle").add_subparsers(
+        dest="subcmd", required=True
+    )
+    config.add_parser("generate", help="Generate a candidate configuration")
+    config.add_parser("validate", help="Validate the pending configuration")
+    config.add_parser("activate", help="Activate the pending configuration")
+    config.add_parser("history", help="Show configuration history")
+
+    args = p.parse_args()
+    c = Client()
+    c.login()
+
+    if args.cmd == "status":
+        _, body = c.request("GET", "/dashboard")
+        pretty(body)
+    elif args.cmd == "client" and args.subcmd == "list":
+        _, body = c.request("GET", "/clients")
+        pretty(body)
+    elif args.cmd == "client" and args.subcmd == "add":
+        code, body = c.request("POST", "/clients", {
+            "name": args.name, "ipaddr": args.ip,
+            "shared_secret": args.secret, "nas_type": args.nas,
+        })
+        pretty(body)
+        return 0 if code == 201 else 1
+    elif args.cmd == "config":
+        if args.subcmd == "history":
+            _, body = c.request("GET", "/configuration/history")
+            pretty(body)
+            return 0
+        _, pending = c.request("GET", "/configuration/pending")
+        if args.subcmd == "generate":
+            pretty(pending)
+            return 0
+        if not pending:
+            fail("No pending configuration (no changes to apply).")
+        vid = pending["id"]
+        if args.subcmd == "validate":
+            _, body = c.request("POST", f"/configuration/{vid}/validate")
+            pretty(body)
+            return 0 if body.get("valid") else 1
+        if args.subcmd == "activate":
+            _, body = c.request("POST", f"/configuration/{vid}/activate")
+            pretty(body)
+            return 0 if body.get("success") else 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

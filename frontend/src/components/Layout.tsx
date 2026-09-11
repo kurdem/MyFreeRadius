@@ -16,6 +16,7 @@ import {
   Typography,
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
+import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 import RouterIcon from "@mui/icons-material/Router";
 import GroupWorkIcon from "@mui/icons-material/GroupWork";
 import SettingsEthernetIcon from "@mui/icons-material/SettingsEthernet";
@@ -40,6 +41,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Dashboard", to: "/", icon: <DashboardIcon /> },
+  { label: "Setup Wizard", to: "/wizard", icon: <AutoFixHighIcon /> },
   { label: "RADIUS Clients", to: "/clients", icon: <RouterIcon /> },
   { label: "Client Groups", to: "/client-groups", icon: <GroupWorkIcon /> },
   { label: "Configuration", to: "/configuration", icon: <SettingsEthernetIcon /> },

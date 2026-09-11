@@ -13,6 +13,7 @@ import Mfa from "./pages/Mfa";
 import TestAuth from "./pages/TestAuth";
 import Certificates from "./pages/Certificates";
 import Backup from "./pages/Backup";
+import Wizard from "./pages/Wizard";
 import ComingSoon from "./pages/ComingSoon";
 import type { ReactNode } from "react";
 
@@ -54,6 +55,7 @@ export default function App() {
       />
       <Route path="/certificates" element={<Protected><Certificates /></Protected>} />
       <Route path="/backup" element={<Protected><Backup /></Protected>} />
+      <Route path="/wizard" element={<Protected><Wizard /></Protected>} />
       <Route path="/test-auth" element={<Protected><TestAuth /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

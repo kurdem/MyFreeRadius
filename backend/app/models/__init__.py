@@ -6,6 +6,7 @@ from app.models.config_version import ConfigVersion, ConfigState
 from app.models.audit import AuditLog
 from app.models.active_directory import ADConfig, ADGroup, GroupAccess
 from app.models.mfa import UserTotp
+from app.models.certificate import CaCertificate
 
 __all__ = [
     "Base",
@@ -20,4 +21,5 @@ __all__ = [
     "ADGroup",
     "GroupAccess",
     "UserTotp",
+    "CaCertificate",
 ]

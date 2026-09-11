@@ -12,6 +12,7 @@ from app import __version__
 from app.api import (
     active_directory,
     auth,
+    certificates,
     clients,
     configuration,
     health,
@@ -96,6 +97,7 @@ app.include_router(clients.router, prefix=API)
 app.include_router(clients.group_router, prefix=API)
 app.include_router(configuration.router, prefix=API)
 app.include_router(active_directory.router, prefix=API)
+app.include_router(certificates.router, prefix=API)
 app.include_router(mfa.router, prefix=API)
 app.include_router(radius.router, prefix=API)
 app.include_router(logs.router, prefix=API)

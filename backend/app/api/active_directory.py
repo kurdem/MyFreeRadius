@@ -20,7 +20,7 @@ from app.schemas.active_directory import (
 )
 from app.security.crypto import encrypt_secret
 from app.security.deps import require_admin, require_any, require_operator
-from app.services import audit, ldap_service
+from app.services import audit, cert_service, ldap_service
 
 router = APIRouter(prefix="/active-directory", tags=["active-directory"])
 
@@ -107,7 +107,7 @@ def test_connection(
     cfg = _get_config(db)
     if cfg is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="AD is not configured yet")
-    result = ldap_service.test_connection(cfg)
+    result = ldap_service.test_connection(cfg, ca_bundle=cert_service.build_bundle(db))
     audit.record(
         db, username=user.username, action="TEST_AD_CONNECTION",
         object_ref=cfg.primary_dc, source_ip=_client_ip(request),

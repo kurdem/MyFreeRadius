@@ -21,20 +21,50 @@ def _imports():
     return Connection, Server, Tls, SUBTREE, LDAPException, ssl
 
 
-def _server(config: ADConfig, host: str):
+def _server(config: ADConfig, host: str, ca_file: str | None = None):
     Connection, Server, Tls, SUBTREE, LDAPException, ssl = _imports()
     tls = None
     if config.use_ldaps:
-        tls = Tls(validate=ssl.CERT_REQUIRED if config.verify_tls else ssl.CERT_NONE)
+        validate = ssl.CERT_REQUIRED if config.verify_tls else ssl.CERT_NONE
+        # Use the uploaded CA bundle to validate the DC certificate, when present.
+        tls = Tls(validate=validate, ca_certs_file=ca_file) if ca_file else Tls(validate=validate)
     return Server(host, port=config.port, use_ssl=config.use_ldaps, tls=tls,
                   connect_timeout=config.timeout_seconds)
+
+
+class _ca_tempfile:
+    """Write the CA bundle to a temp file for the duration of a connection."""
+
+    def __init__(self, ca_bundle: str | None):
+        self._bundle = ca_bundle
+        self.path: str | None = None
+
+    def __enter__(self) -> str | None:
+        if not self._bundle:
+            return None
+        import tempfile
+
+        fh = tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False)
+        fh.write(self._bundle)
+        fh.close()
+        self.path = fh.name
+        return self.path
+
+    def __exit__(self, *exc):
+        if self.path:
+            import os
+
+            try:
+                os.remove(self.path)
+            except OSError:
+                pass
 
 
 def _hosts(config: ADConfig) -> list[str]:
     return [h for h in (config.primary_dc, config.secondary_dc) if h]
 
 
-def find_user(config: ADConfig, username: str) -> tuple[str | None, list[str]]:
+def find_user(config: ADConfig, username: str, ca_bundle: str | None = None) -> tuple[str | None, list[str]]:
     """Return the user's DN and its group DNs (memberOf), using the bind account.
 
     The username is escaped into the LDAP filter to prevent LDAP injection.
@@ -44,56 +74,59 @@ def find_user(config: ADConfig, username: str) -> tuple[str | None, list[str]]:
     Connection, Server, Tls, SUBTREE, LDAPException, ssl = _imports()
     safe = escape_filter_chars(username)
     password = decrypt_secret(config.bind_password_encrypted)
-    for host in _hosts(config):
-        try:
-            conn = Connection(_server(config, host), user=config.bind_user,
-                              password=password, auto_bind=True,
-                              receive_timeout=config.timeout_seconds)
-            conn.search(
-                search_base=config.base_dn,
-                search_filter=f"(sAMAccountName={safe})",
-                search_scope=SUBTREE,
-                attributes=["distinguishedName", "memberOf"],
-            )
-            if not conn.entries:
+    with _ca_tempfile(ca_bundle) as ca_file:
+        for host in _hosts(config):
+            try:
+                conn = Connection(_server(config, host, ca_file), user=config.bind_user,
+                                  password=password, auto_bind=True,
+                                  receive_timeout=config.timeout_seconds)
+                conn.search(
+                    search_base=config.base_dn,
+                    search_filter=f"(sAMAccountName={safe})",
+                    search_scope=SUBTREE,
+                    attributes=["distinguishedName", "memberOf"],
+                )
+                if not conn.entries:
+                    conn.unbind()
+                    return None, []
+                entry = conn.entries[0]
+                dn = str(entry.entry_dn)
+                groups = [str(g) for g in (entry["memberOf"].values if "memberOf" in entry else [])]
                 conn.unbind()
-                return None, []
-            entry = conn.entries[0]
-            dn = str(entry.entry_dn)
-            groups = [str(g) for g in (entry["memberOf"].values if "memberOf" in entry else [])]
-            conn.unbind()
-            return dn, groups
-        except LDAPException as exc:
-            logger.warning("ldap_find_user_failed", extra={"event": "ldap", "result": str(host)})
-            last = exc  # noqa: F841
-            continue
+                return dn, groups
+            except LDAPException:
+                logger.warning("ldap_find_user_failed", extra={"event": "ldap", "result": str(host)})
+                continue
     return None, []
 
 
-def check_password(config: ADConfig, user_dn: str, password: str) -> bool:
+def check_password(config: ADConfig, user_dn: str, password: str,
+                   ca_bundle: str | None = None) -> bool:
     """Verify the AD password by binding as the user DN."""
     Connection, Server, Tls, SUBTREE, LDAPException, ssl = _imports()
     if not password:
         return False
-    for host in _hosts(config):
-        try:
-            conn = Connection(_server(config, host), user=user_dn, password=password,
-                              auto_bind=True, receive_timeout=config.timeout_seconds)
-            conn.unbind()
-            return True
-        except LDAPException:
-            return False
+    with _ca_tempfile(ca_bundle) as ca_file:
+        for host in _hosts(config):
+            try:
+                conn = Connection(_server(config, host, ca_file), user=user_dn,
+                                  password=password, auto_bind=True,
+                                  receive_timeout=config.timeout_seconds)
+                conn.unbind()
+                return True
+            except LDAPException:
+                return False
     return False
 
 
-def test_connection(config: ADConfig) -> dict:
+def test_connection(config: ADConfig, ca_bundle: str | None = None) -> dict:
     """Attempt to bind to the domain controller and read the base DN.
 
     Returns ``{"success": bool, "message": str, "details": str}``.
     """
     # Imported lazily so the rest of the app runs even if ldap3 is missing.
     try:
-        from ldap3 import BASE, Connection, Server, Tls
+        from ldap3 import BASE, Connection
         from ldap3.core.exceptions import LDAPException
     except ImportError:  # pragma: no cover - dependency always present in image
         return {
@@ -102,30 +135,17 @@ def test_connection(config: ADConfig) -> dict:
             "details": "Install ldap3 in the backend image.",
         }
 
-    import ssl
-
-    tls = None
-    if config.use_ldaps:
-        validate = ssl.CERT_REQUIRED if config.verify_tls else ssl.CERT_NONE
-        tls = Tls(validate=validate)
-
     password = decrypt_secret(config.bind_password_encrypted)
     results: list[str] = []
     last_error: str | None = None
 
-    # Try primary, then secondary DC.
-    hosts = [h for h in (config.primary_dc, config.secondary_dc) if h]
-    for host in hosts:
+    with _ca_tempfile(ca_bundle) as ca_file:
+      # Try primary, then secondary DC.
+      hosts = [h for h in (config.primary_dc, config.secondary_dc) if h]
+      for host in hosts:
         try:
-            server = Server(
-                host,
-                port=config.port,
-                use_ssl=config.use_ldaps,
-                tls=tls,
-                connect_timeout=config.timeout_seconds,
-            )
             conn = Connection(
-                server,
+                _server(config, host, ca_file),
                 user=config.bind_user,
                 password=password,
                 auto_bind=True,

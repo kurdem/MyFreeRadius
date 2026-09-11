@@ -44,7 +44,8 @@ ldap {
     }
 
     tls {
-        require_cert = '[[ require_cert ]]'
+[% if ca_file %]        ca_file = [[ ca_file ]]
+[% endif %]        require_cert = '[[ require_cert ]]'
     }
 
     pool {

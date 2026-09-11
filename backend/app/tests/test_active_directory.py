@@ -92,7 +92,7 @@ def test_connection_test_endpoint(admin_client, monkeypatch):
 
     monkeypatch.setattr(
         ad_api.ldap_service, "test_connection",
-        lambda cfg: {"success": True, "message": "ok", "details": "dc01: bind OK"},
+        lambda cfg, **kw: {"success": True, "message": "ok", "details": "dc01: bind OK"},
     )
     r = admin_client.post("/api/v1/active-directory/test", headers=admin_client.csrf_headers)
     assert r.status_code == 200
@@ -120,6 +120,7 @@ def test_ldap_service_success_with_fake_ldap3(admin_client, monkeypatch):
 
     fake = types.ModuleType("ldap3")
     fake.BASE = "BASE"
+    fake.SUBTREE = "SUBTREE"
     fake.Server = lambda *a, **k: types.SimpleNamespace(**k)
     fake.Connection = FakeConnection
     fake.Tls = lambda **k: object()

@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ConfigState, ConfigVersion, RadiusClient, User
+from app.models import ADConfig, ConfigState, ConfigVersion, RadiusClient, User
 from app.security.deps import require_any
 from app.services import radius_agent
 from app.services.radius_agent import AgentError
@@ -49,12 +49,22 @@ def dashboard(db: Session = Depends(get_db), _: User = Depends(require_any)):
     except AgentError as exc:
         radius_status = {"reachable": False, "error": str(exc)}
 
+    ad = db.get(ADConfig, 1)
+    if ad is None:
+        ad_status = {"status": "not_configured", "note": "Configure under Active Directory"}
+    else:
+        ad_status = {
+            "status": "configured" if ad.enabled else "disabled",
+            "domain": ad.domain,
+            "note": "RADIUS auth against AD is wired in the next slice",
+        }
+
     return {
         "radius": radius_status,
         "clients": {"total": total_clients, "enabled": enabled_clients,
                     "disabled": total_clients - enabled_clients},
         "active_config_version": active_version,
-        # Phase 3+ features surfaced as not-yet-available rather than faked.
-        "active_directory": {"status": "not_configured", "note": "Coming in phase 3"},
+        "active_directory": ad_status,
+        # Phase 3 (certificates) surfaced as not-yet-available rather than faked.
         "certificates": {"status": "not_configured", "note": "Coming in phase 3"},
     }

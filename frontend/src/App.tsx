@@ -8,6 +8,7 @@ import Clients from "./pages/Clients";
 import ClientGroups from "./pages/ClientGroups";
 import Configuration from "./pages/Configuration";
 import Logs from "./pages/Logs";
+import ActiveDirectory from "./pages/ActiveDirectory";
 import ComingSoon from "./pages/ComingSoon";
 import type { ReactNode } from "react";
 
@@ -33,18 +34,7 @@ export default function App() {
       <Route path="/client-groups" element={<Protected><ClientGroups /></Protected>} />
       <Route path="/configuration" element={<Protected><Configuration /></Protected>} />
       <Route path="/logs" element={<Protected><Logs /></Protected>} />
-      <Route
-        path="/active-directory"
-        element={
-          <Protected>
-            <ComingSoon
-              title="Active Directory"
-              phase="Phase 3"
-              description="LDAP/LDAPS connection to Active Directory, AD group restrictions, CA certificate handling and real credential authentication."
-            />
-          </Protected>
-        }
-      />
+      <Route path="/active-directory" element={<Protected><ActiveDirectory /></Protected>} />
       <Route
         path="/policies"
         element={

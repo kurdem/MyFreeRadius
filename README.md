@@ -33,7 +33,8 @@ VMware Horizon Connection Server  ──RADIUS/1812──▶  FreeRADIUS  ──
 | Configuration history + rollback | ✅ |
 | RADIUS live log + audit log (secrets masked) | ✅ |
 | Dashboard + health/readiness endpoints | ✅ |
-| Active Directory / LDAP(S) integration | ⏳ Phase 3 |
+| Active Directory config + **real** LDAP(S) connection test + allowed groups | ✅ (Phase 3, slice 1) |
+| FreeRADIUS ↔ AD auth wiring (logins authenticate against AD) | ⏳ Phase 3, slice 2 |
 | Certificate management | ⏳ Phase 3 |
 | Authentication policies (AD group checks) | ⏳ Phase 4 |
 | End-to-end "Test Authentication" | ⏳ Phase 4 |

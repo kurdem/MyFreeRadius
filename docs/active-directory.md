@@ -1,33 +1,55 @@
-# Active Directory integration (Phase 3 — roadmap)
+# Active Directory integration (Phase 3)
 
-> **Not yet implemented.** This page documents the planned design so the intent
-> is clear. In the UI, Active Directory, Certificates and Policies are shown as
-> **Coming Soon** and perform no actions.
+> **Slice 1 is implemented:** you can configure the AD/LDAP(S) connection, store
+> it securely, run a **real** connection test, and manage allowed AD groups.
+> **Slice 2 (next):** wiring FreeRADIUS to authenticate RADIUS logins against
+> this AD. Until then, AD settings are stored and testable but not yet used for
+> RADIUS authentication (the UI says so).
 
-## Planned scope
+## Configure (UI: Active Directory)
 
-- Configure the AD connection: domain, one or more domain controllers,
-  LDAP (389) / LDAPS (636), Base DN, bind user + bind password, timeouts.
-- LDAPS with CA certificate validation (certificate management page).
-- Restrict RADIUS authentication to specific AD groups (allow-lists).
-- Map AD groups → policies → allow/deny + reply attributes (Phase 4).
+| Field | Example | Notes |
+|-------|---------|-------|
+| Domain | `corp.example.local` | AD DNS domain |
+| Primary / Secondary DC | `dc01.corp.example.local` | Tried in order during the test |
+| Port | `389` / `636` | 636 for LDAPS |
+| Use LDAPS | on | TLS to the DC |
+| Verify TLS certificate | on | **Keep on in production.** A warning is shown if off |
+| Base DN | `DC=corp,DC=example,DC=local` | Search base |
+| Bind User | `svc-radius@corp.example.local` | UPN or full DN |
+| Bind Password | — | Stored **encrypted at rest** (Fernet); never returned or logged |
+| Timeout (s) | `5` | Connect/receive timeout |
+| Enabled | on | Marks AD active |
 
-## Planned data handling
+Click **Test Connection** to perform a real bind against a DC and verify the
+base DN is readable. Failures return a clear reason (e.g. TLS error, bad
+credentials, timeout) without leaking the password.
 
-- Bind passwords stored **encrypted at rest** (Fernet), like shared secrets —
-  never returned in plaintext, never logged, never exported by default.
-- CA certificates managed with expiry warnings (30 / 7 / expired).
+## Allowed AD groups
 
-## Planned FreeRADIUS mapping
+Add the AD groups permitted (or denied) to authenticate, by DN:
 
-The generator will render an `ldap` module instance and wire it into the
-authorize/authenticate sections, with group checks expressed as policy rules.
-The exact authentication method offered to Horizon (PAP vs MS-CHAPv2) will be
-constrained by the chosen AD backend — see [horizon.md](horizon.md).
+```
+Name:      Horizon-Users
+Group DN:  CN=Horizon-Users,OU=Groups,DC=corp,DC=example,DC=local
+Access:    Allow
+Attribute: User        (optional; used when policies are wired in slice 2)
+```
 
-## Why it is staged
+## Security
 
-Doing AD safely requires the certificate store, secret handling for bind
-credentials, and a policy engine. These are built in Phases 3–4 rather than
-shipped as a non-functional form. Everything shown in the UI today performs a
-real action or is explicitly labelled Coming Soon.
+- Bind password encrypted at rest (Fernet), like RADIUS shared secrets — never
+  returned by the API/UI, never logged, never exported by default.
+- All host/DN inputs are validated (no control characters) since they will feed
+  a generated FreeRADIUS `ldap` module in slice 2.
+- The connection test builds no LDAP filter from user input, so it is not
+  susceptible to LDAP injection.
+- LDAPS certificate validation is on by default; disabling it shows a warning.
+
+## What slice 2 adds
+
+- A generated FreeRADIUS `ldap` module + PAP-over-LDAP authenticate flow.
+- Group authorization: only members of the allowed groups get `Access-Accept`.
+- The control agent extended to manage these files and reload safely.
+- The built-in end-to-end **Test Authentication** (Phase 4) then exercises the
+  full Horizon → RADIUS → AD chain.

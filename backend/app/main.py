@@ -12,6 +12,7 @@ from app import __version__
 from app.api import auth, clients, configuration, health, logs
 from app.config import get_settings
 from app.logging_conf import configure_logging
+from app.security.crypto import SecretCryptoError
 from app.services.seed import bootstrap_admin, init_db
 
 logger = logging.getLogger("app")
@@ -20,6 +21,13 @@ logger = logging.getLogger("app")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
+    # Fail loud and early on secret-key misconfiguration (common setup mistake).
+    try:
+        from app.security.crypto import validate_key
+
+        validate_key()
+    except Exception as exc:  # noqa: BLE001 - surface the exact reason at boot
+        logger.error("startup", extra={"event": "fernet_key_invalid", "result": str(exc)})
     init_db()
     bootstrap_admin()
     logger.info("startup", extra={"event": "app_started", "result": __version__})
@@ -55,6 +63,14 @@ async def security_headers(request: Request, call_next):
     if settings.is_production:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
+
+@app.exception_handler(SecretCryptoError)
+async def secret_crypto_error_handler(request: Request, exc: SecretCryptoError):
+    # Configuration error (e.g. invalid FERNET_KEY). The message is guidance, not
+    # sensitive data, so return it verbatim in every environment.
+    logger.error("crypto_config_error", extra={"event": "error", "result": str(exc)})
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 
 @app.exception_handler(Exception)

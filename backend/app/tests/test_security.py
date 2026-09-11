@@ -12,6 +12,22 @@ def test_secret_roundtrip_and_not_plaintext():
     assert decrypt_secret(token) == "MyShared!Secret"
 
 
+def test_invalid_fernet_key_raises_actionable_error(monkeypatch):
+    import app.security.crypto as crypto
+    from app.config import get_settings
+
+    crypto._fernet.cache_clear()
+    settings = get_settings()
+    monkeypatch.setattr(settings, "fernet_key", "not-a-valid-fernet-key", raising=False)
+    try:
+        with __import__("pytest").raises(crypto.SecretCryptoError) as exc:
+            crypto.validate_key()
+        assert "Fernet" in str(exc.value)
+        assert "generate_key" in str(exc.value)  # actionable hint present
+    finally:
+        crypto._fernet.cache_clear()  # restore valid key for other tests
+
+
 def test_password_hash_is_argon2id():
     h = hash_password("correct horse battery staple")
     assert h.startswith("$argon2id$")

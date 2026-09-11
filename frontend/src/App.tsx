@@ -15,6 +15,7 @@ import Certificates from "./pages/Certificates";
 import Backup from "./pages/Backup";
 import Wizard from "./pages/Wizard";
 import Users from "./pages/Users";
+import Enroll from "./pages/Enroll";
 import ComingSoon from "./pages/ComingSoon";
 import type { ReactNode } from "react";
 
@@ -35,6 +36,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/enroll/:token" element={<Enroll />} />
       <Route path="/" element={<Protected><Dashboard /></Protected>} />
       <Route path="/clients" element={<Protected><Clients /></Protected>} />
       <Route path="/client-groups" element={<Protected><ClientGroups /></Protected>} />

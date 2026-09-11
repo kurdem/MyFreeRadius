@@ -48,6 +48,10 @@ export default function Mfa() {
   const [pendingUser, setPendingUser] = useState<string | null>(null);
   const [code, setCode] = useState("");
 
+  // Self-service enrollment link
+  const [linkUser, setLinkUser] = useState("");
+  const [link, setLink] = useState<{ url: string; expires: string } | null>(null);
+
   const loadTokens = () =>
     api.get<Token[]>("/mfa/tokens").then((r) => setTokens(r.data)).catch(() => undefined);
 
@@ -102,6 +106,18 @@ export default function Mfa() {
       setCode("");
       setEnrollUser("");
       loadTokens();
+    } catch (e) {
+      setMsg({ s: "error", t: errorMessage(e) });
+    }
+  };
+
+  const createLink = async () => {
+    setMsg(null);
+    setLink(null);
+    try {
+      const r = await api.post<{ enroll_path: string; expires_at: string }>(
+        "/mfa/enroll-link", { username: linkUser });
+      setLink({ url: window.location.origin + r.data.enroll_path, expires: r.data.expires_at });
     } catch (e) {
       setMsg({ s: "error", t: errorMessage(e) });
     }
@@ -200,6 +216,42 @@ export default function Mfa() {
                 <Button variant="contained" onClick={confirm} disabled={code.length < 6}>
                   Confirm
                 </Button>
+              </Stack>
+            </Box>
+          )}
+        </Paper>
+      )}
+
+      {isAdmin && (
+        <Paper sx={{ p: 3, mb: 3, maxWidth: 680 }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>Self-service enrollment link</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Generate a one-time, 24-hour link and send it to the user (e.g. by email).
+            They open it without logging in, scan the QR code and confirm — no admin
+            interaction needed.
+          </Typography>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={8}>
+              <TextField label="AD username (sAMAccountName)" fullWidth value={linkUser}
+                onChange={(e) => setLinkUser(e.target.value)} />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Button variant="outlined" onClick={createLink} disabled={!linkUser}>
+                Generate link
+              </Button>
+            </Grid>
+          </Grid>
+          {link && (
+            <Box sx={{ mt: 2 }}>
+              <TextField label="Enrollment link" fullWidth value={link.url}
+                InputProps={{ readOnly: true }} onFocus={(e) => e.target.select()} />
+              <Stack direction="row" spacing={1} sx={{ mt: 1 }} alignItems="center">
+                <Button size="small" onClick={() => navigator.clipboard?.writeText(link.url)}>
+                  Copy link
+                </Button>
+                <Typography variant="caption" color="text.secondary">
+                  Expires {new Date(link.expires).toLocaleString()} · single use
+                </Typography>
               </Stack>
             </Box>
           )}

@@ -125,6 +125,39 @@ def test_radius_authorize_rlm_rest_native_format(admin_client, monkeypatch):
     assert r.json()["result"] == "accept"
 
 
+def test_self_service_enrollment(admin_client, client):
+    # Admin creates a one-time link.
+    link = admin_client.post("/api/v1/mfa/enroll-link", json={"username": "selfuser"},
+                             headers=admin_client.csrf_headers)
+    assert link.status_code == 200, link.text
+    token = link.json()["token"]
+    assert link.json()["enroll_path"] == f"/enroll/{token}"
+
+    # The enrollment endpoints are PUBLIC (use an unauthenticated client).
+    info = client.get(f"/api/v1/mfa/enroll/{token}")
+    assert info.status_code == 200
+    assert info.json()["username"] == "selfuser"
+    secret = info.json()["secret"]
+
+    # Wrong code is rejected.
+    bad = client.post(f"/api/v1/mfa/enroll/{token}/confirm", json={"code": "000000"})
+    assert bad.status_code == 400
+
+    code = pyotp.TOTP(secret).now()
+    ok = client.post(f"/api/v1/mfa/enroll/{token}/confirm", json={"code": code})
+    assert ok.status_code == 200
+
+    # Token is now single-use / consumed.
+    assert client.get(f"/api/v1/mfa/enroll/{token}").status_code == 404
+    # The user's TOTP token is confirmed.
+    tokens = {t["username"]: t for t in admin_client.get("/api/v1/mfa/tokens").json()}
+    assert tokens["selfuser"]["confirmed"] is True
+
+
+def test_self_enroll_invalid_token(client):
+    assert client.get("/api/v1/mfa/enroll/does-not-exist").status_code == 404
+
+
 def test_radius_authorize_bad_token(admin_client):
     r = admin_client.post("/api/v1/radius/authorize",
                           json={"username": "x", "password": "y", "token": "wrong"})

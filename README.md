@@ -37,7 +37,7 @@ VMware Horizon Connection Server  ──RADIUS/1812──▶  FreeRADIUS  ──
 | FreeRADIUS ↔ AD auth wiring: generated `ldap` module + `manager` virtual server (PAP bind) + AD group authorization | ✅ (Phase 3, slice 2) |
 | **TOTP MFA**: per-user enrollment (QR), FreeRADIUS delegates via `rlm_rest`, `totp_only` / `ad_password_plus_totp` modes | ✅ (Phase 4) |
 | **Test Authentication**: real end-to-end Access-Request through the full pipeline (via `radclient`) | ✅ |
-| Certificate management | ⏳ |
+| **CA certificate management** for LDAPS validation (upload, expiry warnings, applied to the test + generated LDAP config) | ✅ |
 | Backup / restore, monitoring / metrics | ⏳ |
 | End-to-end "Test Authentication" | ⏳ Phase 4 |
 | Backup / restore, monitoring/metrics | ⏳ Phase 5–6 |

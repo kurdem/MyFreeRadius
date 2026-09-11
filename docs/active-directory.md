@@ -35,6 +35,21 @@ Access:    Allow
 Attribute: User        (optional; used when policies are wired in slice 2)
 ```
 
+## LDAPS certificate validation (Certificates page)
+
+For LDAPS with a private/internal AD CA, upload the CA certificate(s) on the
+**Certificates** page (PEM, public only — never private keys). They are used to
+validate the DC certificate in two places:
+
+- the built-in **Test Connection** and MFA-mode LDAP (backend, via `ldap3`);
+- the generated FreeRADIUS `ldap` module (`tls { ca_file = … }`), written as a
+  managed `certs/manager_ca.pem` on the next **Activate** (LDAP mode).
+
+Without an uploaded CA, LDAPS uses the system trust store. Expiry is surfaced on
+the dashboard and the Certificates page (valid / expiring ≤ 30 days / expired).
+Turning off **Verify TLS certificate** disables validation and shows a warning —
+avoid it in production.
+
 ## Security
 
 - Bind password encrypted at rest (Fernet), like RADIUS shared secrets — never

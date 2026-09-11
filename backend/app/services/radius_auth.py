@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import ADConfig, ADGroup, GroupAccess, UserTotp
-from app.services import ldap_service, totp_service
+from app.services import cert_service, ldap_service, totp_service
 
 logger = logging.getLogger("radius_auth")
 
@@ -66,12 +66,15 @@ def authorize(db: Session, username: str, password: str) -> tuple[bool, str]:
 
     # Group membership + (for append mode) AD password check.
     if cfg.enabled:
-        user_dn, groups = ldap_service.find_user(cfg, username)
+        ca_bundle = cert_service.build_bundle(db)
+        user_dn, groups = ldap_service.find_user(cfg, username, ca_bundle=ca_bundle)
         if user_dn is None:
             return False, "user not found in AD"
         if not _group_ok(db, groups):
             return False, "user not in an allowed AD group"
-        if ad_password is not None and not ldap_service.check_password(cfg, user_dn, ad_password):
+        if ad_password is not None and not ldap_service.check_password(
+            cfg, user_dn, ad_password, ca_bundle=ca_bundle
+        ):
             return False, "invalid AD password"
 
     return True, "ok"

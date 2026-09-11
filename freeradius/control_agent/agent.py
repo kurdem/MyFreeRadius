@@ -45,6 +45,7 @@ ALLOWED_WRITE_PATHS = {
     "mods-enabled/rest",
     "sites-enabled/manager",
     "mods-config/manager_authorize",
+    "certs/manager_ca.pem",
 }
 # Managed files we may remove when switching modes. We never touch the stock
 # "default" site: clients are routed to the "manager" server via
@@ -54,6 +55,7 @@ ALLOWED_DELETE_PATHS = {
     "mods-enabled/rest",
     "sites-enabled/manager",
     "mods-config/manager_authorize",
+    "certs/manager_ca.pem",
 }
 
 # Mask anything that looks like a secret before it leaves the agent.

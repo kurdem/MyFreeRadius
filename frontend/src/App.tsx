@@ -11,6 +11,7 @@ import Logs from "./pages/Logs";
 import ActiveDirectory from "./pages/ActiveDirectory";
 import Mfa from "./pages/Mfa";
 import TestAuth from "./pages/TestAuth";
+import Certificates from "./pages/Certificates";
 import ComingSoon from "./pages/ComingSoon";
 import type { ReactNode } from "react";
 
@@ -50,18 +51,7 @@ export default function App() {
           </Protected>
         }
       />
-      <Route
-        path="/certificates"
-        element={
-          <Protected>
-            <ComingSoon
-              title="Certificates"
-              phase="Phase 3"
-              description="CA / LDAPS / server certificate management with expiry warnings."
-            />
-          </Protected>
-        }
-      />
+      <Route path="/certificates" element={<Protected><Certificates /></Protected>} />
       <Route path="/test-auth" element={<Protected><TestAuth /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

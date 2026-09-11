@@ -69,7 +69,7 @@ def test_radius_authorize_totp_only(admin_client, monkeypatch):
     # In totp_only mode, group check hits AD; stub it to "found + in allowed group".
     from app.services import radius_auth
     monkeypatch.setattr(radius_auth.ldap_service, "find_user",
-                        lambda cfg, u: ("CN=otpuser,DC=corp", []))
+                        lambda cfg, u, **kw: ("CN=otpuser,DC=corp", []))
     monkeypatch.setattr(radius_auth, "_group_ok", lambda db, groups: True)
 
     token = "test-agent-token"  # from conftest env
@@ -112,7 +112,7 @@ def test_radius_authorize_rlm_rest_native_format(admin_client, monkeypatch):
 
     from app.services import radius_auth
     monkeypatch.setattr(radius_auth.ldap_service, "find_user",
-                        lambda cfg, u: ("CN=nativeuser,DC=corp", []))
+                        lambda cfg, u, **kw: ("CN=nativeuser,DC=corp", []))
     monkeypatch.setattr(radius_auth, "_group_ok", lambda db, groups: True)
 
     otp = pyotp.TOTP(secret).now()
@@ -146,10 +146,10 @@ def test_radius_authorize_append_mode(admin_client, monkeypatch):
 
     from app.services import radius_auth
     monkeypatch.setattr(radius_auth.ldap_service, "find_user",
-                        lambda cfg, u: ("CN=appenduser,DC=corp", []))
+                        lambda cfg, u, **kw: ("CN=appenduser,DC=corp", []))
     monkeypatch.setattr(radius_auth, "_group_ok", lambda db, groups: True)
     monkeypatch.setattr(radius_auth.ldap_service, "check_password",
-                        lambda cfg, dn, pw: pw == "MyADpass")
+                        lambda cfg, dn, pw, **kw: pw == "MyADpass")
 
     otp = pyotp.TOTP(secret).now()
     r = admin_client.post("/api/v1/radius/authorize",

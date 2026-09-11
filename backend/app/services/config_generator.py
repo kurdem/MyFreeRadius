@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.models import ADConfig, ADGroup, GroupAccess, RadiusClient
 from app.security.crypto import decrypt_secret
+from app.services import cert_service
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 _env = Environment(
@@ -82,7 +83,7 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def generate_ldap_module(ad: ADConfig) -> str:
+def generate_ldap_module(ad: ADConfig, ca_file: str | None = None) -> str:
     """Render mods-enabled/ldap from the AD configuration."""
     hosts = [h for h in (ad.primary_dc, ad.secondary_dc) if h]
     if ad.use_ldaps:
@@ -100,6 +101,7 @@ def generate_ldap_module(ad: ADConfig) -> str:
         base_dn=ad.base_dn,
         timeout=ad.timeout_seconds,
         require_cert=require_cert,
+        ca_file=ca_file,
     )
 
 
@@ -130,7 +132,13 @@ def generate_manager_site_rest() -> str:
 # Managed FreeRADIUS files that may be present depending on mode. Any not written
 # in the current state is listed for deletion so mode switches are clean. We
 # never delete the stock "default" site (clients route to "manager" instead).
-_MANAGED_FR_FILES = {"mods-enabled/ldap", "mods-enabled/rest", "sites-enabled/manager"}
+_MANAGED_FR_FILES = {
+    "mods-enabled/ldap", "mods-enabled/rest", "sites-enabled/manager",
+    "certs/manager_ca.pem",
+}
+# Where the FreeRADIUS container expects the managed CA bundle.
+_CA_FILE_REL = "certs/manager_ca.pem"
+_CA_FILE_ABS = "${certdir}/manager_ca.pem"
 
 
 def generate_bundle(db: Session, *, version: int, backend_url: str = "http://backend:8000") -> dict:
@@ -159,7 +167,14 @@ def generate_bundle(db: Session, *, version: int, backend_url: str = "http://bac
         files["sites-enabled/manager"] = generate_manager_site_rest()
     elif ad_enabled:
         groups = db.scalars(select(ADGroup).order_by(ADGroup.name)).all()
-        files["mods-enabled/ldap"] = generate_ldap_module(ad)
+        # Provide the uploaded CA bundle to FreeRADIUS for LDAPS validation.
+        ca_file = None
+        if ad.use_ldaps:
+            ca_bundle = cert_service.build_bundle(db)
+            if ca_bundle:
+                files[_CA_FILE_REL] = ca_bundle
+                ca_file = _CA_FILE_ABS
+        files["mods-enabled/ldap"] = generate_ldap_module(ad, ca_file=ca_file)
         files["sites-enabled/manager"] = generate_manager_site(list(groups))
 
     # Anything managed but not written in this state should be removed.

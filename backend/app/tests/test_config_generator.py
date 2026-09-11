@@ -122,7 +122,10 @@ def test_ad_enabled_bundle_includes_ldap_and_manager(admin_client, fake_agent):
     body = admin_client.get(f"/api/v1/configuration/{pending['id']}/content").json()
     assert "mods-enabled/ldap" not in body["files"]
     assert "virtual_server = manager" not in body["files"]["clients.conf"]
-    assert set(body["deletes"]) == {"mods-enabled/ldap", "mods-enabled/rest", "sites-enabled/manager"}
+    assert set(body["deletes"]) == {
+        "mods-enabled/ldap", "mods-enabled/rest", "sites-enabled/manager",
+        "certs/manager_ca.pem",
+    }
 
 
 def test_disabled_client_excluded(admin_client, fake_agent):

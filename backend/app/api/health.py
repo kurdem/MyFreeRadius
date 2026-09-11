@@ -6,8 +6,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ADConfig, ConfigState, ConfigVersion, RadiusClient, User
+from app.models import ADConfig, CaCertificate, ConfigState, ConfigVersion, RadiusClient, User
 from app.security.deps import require_any
+from app.services import cert_service
 from app.services import radius_agent
 from app.services.radius_agent import AgentError
 
@@ -60,12 +61,26 @@ def dashboard(db: Session = Depends(get_db), _: User = Depends(require_any)):
             if ad.enabled else "AD is configured but disabled",
         }
 
+    certs = db.scalars(select(CaCertificate)).all()
+    if not certs:
+        cert_status = {"status": "none", "count": 0, "note": "No CA certificates uploaded"}
+    else:
+        worst = "valid"
+        min_days = None
+        for c in certs:
+            st, days = cert_service.status_for(c.not_after)
+            min_days = days if min_days is None else min(min_days, days)
+            if st == "expired":
+                worst = "expired"
+            elif st == "expiring" and worst != "expired":
+                worst = "expiring"
+        cert_status = {"status": worst, "count": len(certs), "min_days_left": min_days}
+
     return {
         "radius": radius_status,
         "clients": {"total": total_clients, "enabled": enabled_clients,
                     "disabled": total_clients - enabled_clients},
         "active_config_version": active_version,
         "active_directory": ad_status,
-        # Phase 3 (certificates) surfaced as not-yet-available rather than faked.
-        "certificates": {"status": "not_configured", "note": "Coming in phase 3"},
+        "certificates": cert_status,
     }

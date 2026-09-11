@@ -1,10 +1,9 @@
 # Active Directory integration (Phase 3)
 
-> **Slice 1 is implemented:** you can configure the AD/LDAP(S) connection, store
-> it securely, run a **real** connection test, and manage allowed AD groups.
-> **Slice 2 (next):** wiring FreeRADIUS to authenticate RADIUS logins against
-> this AD. Until then, AD settings are stored and testable but not yet used for
-> RADIUS authentication (the UI says so).
+> **Slices 1 & 2 are implemented:** configure and **test** the AD/LDAP(S)
+> connection, manage allowed AD groups, and — when AD is **enabled** and the
+> configuration is activated — FreeRADIUS authenticates RADIUS logins against AD
+> (PAP bind) with AD group authorization.
 
 ## Configure (UI: Active Directory)
 
@@ -46,10 +45,40 @@ Attribute: User        (optional; used when policies are wired in slice 2)
   susceptible to LDAP injection.
 - LDAPS certificate validation is on by default; disabling it shows a warning.
 
-## What slice 2 adds
+## How authentication is wired (slice 2)
 
-- A generated FreeRADIUS `ldap` module + PAP-over-LDAP authenticate flow.
-- Group authorization: only members of the allowed groups get `Access-Accept`.
-- The control agent extended to manage these files and reload safely.
-- The built-in end-to-end **Test Authentication** (Phase 4) then exercises the
-  full Horizon → RADIUS → AD chain.
+When AD is **enabled** and you **activate** the configuration, the generator
+produces a bundle that the control agent validates with `freeradius -XC`, writes,
+and reloads (rolling everything back if validation/reload fails):
+
+| File | Purpose |
+|------|---------|
+| `mods-enabled/ldap` | LDAP module pointed at your DC(s), base DN and bind user |
+| `sites-enabled/manager` | Virtual server: `ldap` lookup → AD group check → PAP bind as the user |
+| `sites-enabled/default` (removed) | Replaced by `manager` while AD is enabled (they would clash on 1812/1813) |
+
+Authentication uses **PAP bind**: FreeRADIUS finds the user by `sAMAccountName`
+and binds to AD with the supplied password. Horizon must therefore be set to
+**PAP** for now (see [horizon.md](horizon.md)); MS-CHAPv2 needs ntlm_auth/winbind
+and is a later addition.
+
+Group authorization: only members of an **allow** group get `Access-Accept`;
+**deny** groups are rejected first. With no allow-groups defined, any
+authenticated AD user is accepted.
+
+> The generated FreeRADIUS config follows the standard FR 3.x AD/LDAP recipe and
+> is validated by `freeradius -XC` in your environment on every activate; a
+> failed validation never replaces the working config. If your AD schema differs
+> (e.g. login attribute), adjust and re-activate.
+
+## Activate
+
+1. Configure AD, set **Enabled**, and **Test Connection**.
+2. Add the allowed AD group(s).
+3. **Configuration → Generate Candidate** (preview shows `ldap` + `manager`),
+   **Validate**, then **Activate**.
+4. A real login from Horizon/UAG now authenticates against AD.
+
+Rebuild note: the FreeRADIUS image needs `ldap` support (present in the
+`freeradius/freeradius-server` image). No image change is required to enable AD;
+the module is generated and written at activation time.

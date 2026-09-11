@@ -24,8 +24,8 @@ def _make_fake_radiusd(bindir: str) -> None:
         case "$MODE" in
           -v) echo "FreeRADIUS Version 3.2.x (fake)"; exit 0 ;;
           -XC)
-            if grep -q INVALID_MARKER "$CONF" 2>/dev/null; then
-              echo "Error: INVALID_MARKER on line 1"; exit 1
+            if grep -rq INVALID_MARKER "${RADDB_DIR:-/etc/raddb}" 2>/dev/null; then
+              echo "Error: INVALID_MARKER found"; exit 1
             fi
             echo "Configuration appears to be OK"; exit 0 ;;
           -f)
@@ -69,31 +69,67 @@ def main() -> int:
             failures.append(name)
 
     # validate: good config
-    ok, details = ctrl.validate("client a {\n ipaddr=10.0.0.1\n secret=\"x\"\n}\n")
+    ok, details = ctrl.validate({"clients.conf": "client a {\n ipaddr=10.0.0.1\n secret=\"x\"\n}\n"})
     check("validate accepts good config", ok)
 
     # validate: bad config, and the on-disk config is restored afterwards
-    ok, details = ctrl.validate("INVALID_MARKER\n")
+    ok, details = ctrl.validate({"clients.conf": "INVALID_MARKER\n"})
     check("validate rejects bad config", not ok)
     with open(os.path.join(raddb, "clients.conf")) as fh:
         check("validate restores previous config", fh.read() == "# initial\n")
 
     # secret masking in returned details
-    ok, details = ctrl.validate('client a {\n secret = supersecret\n}\n')
+    ok, details = ctrl.validate({"clients.conf": 'client a {\n secret = supersecret\n}\n'})
     check("details mask secrets", "supersecret" not in details)
 
     # apply: good config gets written and process starts
-    ok, details = ctrl.apply("client good {\n ipaddr=10.0.0.2\n secret=\"y\"\n}\n")
+    ok, details = ctrl.apply({"clients.conf": "client good {\n ipaddr=10.0.0.2\n secret=\"y\"\n}\n"})
     check("apply succeeds", ok)
     check("apply left radiusd running", ctrl.is_running())
     with open(os.path.join(raddb, "clients.conf")) as fh:
         check("apply wrote new config", "client good" in fh.read())
 
     # apply: invalid config is rejected and previous config preserved
-    ok, details = ctrl.apply("INVALID_MARKER\n")
+    ok, details = ctrl.apply({"clients.conf": "INVALID_MARKER\n"})
     check("apply rejects invalid config", not ok)
     with open(os.path.join(raddb, "clients.conf")) as fh:
         check("invalid apply preserved good config", "client good" in fh.read())
+
+    # multi-file apply: writes ldap module + manager site, removes default site
+    os.makedirs(os.path.join(raddb, "sites-enabled"), exist_ok=True)
+    with open(os.path.join(raddb, "sites-enabled", "default"), "w") as fh:
+        fh.write("server default {}\n")
+    ok, details = ctrl.apply(
+        {
+            "clients.conf": "client c {\n ipaddr=10.0.0.3\n secret=\"z\"\n}\n",
+            "mods-enabled/ldap": "ldap { server = 'dc01' }\n",
+            "sites-enabled/manager": "server manager {}\n",
+        },
+        deletes=["sites-enabled/default"],
+    )
+    check("multi-file apply succeeds", ok)
+    check("ldap module written", os.path.exists(os.path.join(raddb, "mods-enabled", "ldap")))
+    check("manager site written", os.path.exists(os.path.join(raddb, "sites-enabled", "manager")))
+    check("default site removed", not os.path.exists(os.path.join(raddb, "sites-enabled", "default")))
+
+    # invalid multi-file apply rolls the WHOLE bundle back (default restored)
+    with open(os.path.join(raddb, "sites-enabled", "default"), "w") as fh:
+        fh.write("server default {}\n")
+    ok, _ = ctrl.apply(
+        {"clients.conf": "client d {}\n", "sites-enabled/manager": "INVALID_MARKER\n"},
+        deletes=["sites-enabled/default"],
+    )
+    check("invalid multi-file apply fails", not ok)
+    check("rollback restored default site", os.path.exists(os.path.join(raddb, "sites-enabled", "default")))
+    with open(os.path.join(raddb, "sites-enabled", "manager")) as fh:
+        check("rollback restored manager site", "INVALID_MARKER" not in fh.read())
+
+    # path-allow-list: writing outside the allow-list is rejected
+    try:
+        ctrl.validate({"../evil": "x"})
+        check("path traversal rejected", False)
+    except ValueError:
+        check("path traversal rejected", True)
 
     # live log: radiusd stdout is captured into the ring buffer
     import time as _t

@@ -180,9 +180,10 @@ export default function ActiveDirectory() {
       </Stack>
 
       <Alert severity="info" sx={{ mb: 2 }}>
-        Phase 3, slice 1: configure and <b>test</b> the LDAP/LDAPS connection to Active
-        Directory here. Using AD to actually authenticate RADIUS logins is wired in the
-        next slice - until then this stores and verifies connectivity only.
+        Configure and <b>test</b> the LDAP/LDAPS connection, then add the allowed AD
+        group(s). When <b>Enabled</b> and after you activate on the Configuration page,
+        FreeRADIUS authenticates RADIUS logins against AD (PAP bind) with group
+        authorization. Horizon must be set to <b>PAP</b> for now.
       </Alert>
 
       {form.use_ldaps && !form.verify_tls && (

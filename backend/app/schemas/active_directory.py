@@ -75,6 +75,19 @@ class ADConfigUpsert(ADConfigBase):
     # first save (enforced in the endpoint if none is stored yet).
     bind_password: str | None = Field(default=None, max_length=256)
 
+    @field_validator("bind_password")
+    @classmethod
+    def _safe_password(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return v
+        # The bind password is embedded in a single-quoted FreeRADIUS config
+        # token, so reject quotes/backslashes/control chars to prevent injection.
+        if any(c in v for c in ("'", '"', "\\", "`")) or any(ord(c) < 32 for c in v):
+            raise ValueError(
+                "bind_password must not contain quotes, backslashes, backticks or control characters"
+            )
+        return v
+
 
 class ADConfigOut(ADConfigBase):
     configured: bool = True

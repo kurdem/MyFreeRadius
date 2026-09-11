@@ -41,7 +41,7 @@ export default function Configuration() {
   const { isAdmin } = useAuth();
   const [history, setHistory] = useState<Version[]>([]);
   const [pending, setPending] = useState<Version | null>(null);
-  const [preview, setPreview] = useState<string>("");
+  const [preview, setPreview] = useState<{ files: Record<string, string>; deletes: string[] } | null>(null);
   const [message, setMessage] = useState<{ severity: "success" | "error" | "info"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -60,11 +60,13 @@ export default function Configuration() {
       if (!r.data) {
         setMessage({ severity: "info", text: "No changes to apply." });
         setPending(null);
-        setPreview("");
+        setPreview(null);
       } else {
         setPending(r.data);
-        const c = await api.get<{ content: string }>(`/configuration/${r.data.id}/content`);
-        setPreview(c.data.content);
+        const c = await api.get<{ files: Record<string, string>; deletes: string[] }>(
+          `/configuration/${r.data.id}/content`,
+        );
+        setPreview({ files: c.data.files, deletes: c.data.deletes });
         if (r.data.state === "active") {
           setMessage({ severity: "info", text: "Current configuration already matches the database." });
         }
@@ -108,7 +110,7 @@ export default function Configuration() {
       });
       if (r.data.success) {
         setPending(null);
-        setPreview("");
+        setPreview(null);
       }
       loadHistory();
     } catch (e) {
@@ -178,14 +180,26 @@ export default function Configuration() {
       {preview && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: "grey.900" }}>
           <Typography variant="overline" sx={{ color: "grey.400" }}>
-            Candidate clients.conf (v{pending?.version})
+            Candidate configuration (v{pending?.version})
           </Typography>
-          <Box
-            component="pre"
-            sx={{ color: "grey.100", fontSize: 13, overflow: "auto", m: 0, mt: 1 }}
-          >
-            {preview}
-          </Box>
+          {Object.entries(preview.files).map(([path, content]) => (
+            <Box key={path} sx={{ mt: 1 }}>
+              <Typography variant="caption" sx={{ color: "#90caf9" }}>
+                {path}
+              </Typography>
+              <Box
+                component="pre"
+                sx={{ color: "grey.100", fontSize: 13, overflow: "auto", m: 0, mt: 0.5 }}
+              >
+                {content}
+              </Box>
+            </Box>
+          ))}
+          {preview.deletes.length > 0 && (
+            <Typography variant="caption" sx={{ color: "#ef9a9a", display: "block", mt: 1 }}>
+              Removed on activate: {preview.deletes.join(", ")}
+            </Typography>
+          )}
         </Paper>
       )}
 

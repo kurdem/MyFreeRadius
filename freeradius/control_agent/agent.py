@@ -33,10 +33,21 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 RADDB = os.environ.get("RADDB_DIR", "/etc/raddb")
 CLIENTS_CONF = os.path.join(RADDB, "clients.conf")
-PREVIOUS_CONF = os.path.join(RADDB, "clients.conf.previous")
 LOG_FILE = os.environ.get("RADIUS_LOG_FILE", "/var/log/radius/radius.log")
 AGENT_TOKEN = os.environ.get("RADIUS_AGENT_TOKEN", "")
 AGENT_PORT = int(os.environ.get("RADIUS_AGENT_PORT", "8000"))
+
+# The only files the backend is allowed to write/delete. This is a hard security
+# boundary against path traversal: any path not in these sets is rejected.
+ALLOWED_WRITE_PATHS = {
+    "clients.conf",
+    "mods-enabled/ldap",
+    "sites-enabled/manager",
+    "mods-config/manager_authorize",
+}
+ALLOWED_DELETE_PATHS = {
+    "sites-enabled/default",
+}
 
 # Mask anything that looks like a secret before it leaves the agent.
 _SECRET_LINE_RE = re.compile(r"(?i)(secret\s*=\s*)(\S+)")
@@ -157,38 +168,81 @@ class RadiusController:
         except subprocess.TimeoutExpired:
             return 1, "validation timed out"
 
-    def validate(self, candidate: str) -> tuple[bool, str]:
-        """Validate ``candidate`` with ``radiusd -XC`` and restore current config."""
+    # -- bundle helpers ----------------------------------------------------- #
+    @staticmethod
+    def _safe_path(rel: str, allowed: set[str]) -> str:
+        """Resolve ``rel`` against RADDB, rejecting anything not allow-listed."""
+        if rel not in allowed:
+            raise ValueError(f"path not allowed: {rel}")
+        full = os.path.normpath(os.path.join(RADDB, rel))
+        # Defence in depth: ensure we stay under RADDB.
+        if not (full == RADDB or full.startswith(RADDB + os.sep)):
+            raise ValueError(f"path escapes config dir: {rel}")
+        return full
+
+    def _snapshot(self, files: dict, deletes: list) -> dict:
+        """Record current on-disk state for every affected path."""
+        snap: dict[str, str | None] = {}
+        for rel in files:
+            full = self._safe_path(rel, ALLOWED_WRITE_PATHS)
+            snap[full] = self._read_file(full) if os.path.exists(full) else None
+        for rel in deletes:
+            full = self._safe_path(rel, ALLOWED_DELETE_PATHS)
+            snap[full] = self._read_file(full) if os.path.exists(full) else None
+        return snap
+
+    def _restore(self, snap: dict) -> None:
+        for full, content in snap.items():
+            if content is None:
+                if os.path.exists(full):
+                    os.remove(full)
+            else:
+                self._write_file(full, content)
+
+    def _write_bundle(self, files: dict, deletes: list) -> None:
+        for rel, content in files.items():
+            full = self._safe_path(rel, ALLOWED_WRITE_PATHS)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            self._write_file(full, content)
+        for rel in deletes:
+            full = self._safe_path(rel, ALLOWED_DELETE_PATHS)
+            if os.path.exists(full):
+                os.remove(full)
+
+    def validate(self, files: dict, deletes: list | None = None) -> tuple[bool, str]:
+        """Validate a candidate bundle with ``-XC``, then restore current state.
+
+        The running server is never disturbed: we write the candidate files,
+        run the syntax check, and roll every file back to how it was.
+        """
+        deletes = deletes or []
         with self._lock:
-            current = self._read_file(CLIENTS_CONF)
+            snap = self._snapshot(files, deletes)
             try:
-                self._write_file(CLIENTS_CONF, candidate)
+                self._write_bundle(files, deletes)
                 rc, out = self._run_check(["-XC"])
             finally:
-                # Always restore the previously on-disk config; the running
-                # server is untouched either way.
-                self._write_file(CLIENTS_CONF, current)
+                self._restore(snap)
             return rc == 0, mask(out)
 
-    def apply(self, candidate: str) -> tuple[bool, str]:
+    def apply(self, files: dict, deletes: list | None = None) -> tuple[bool, str]:
+        deletes = deletes or []
         with self._lock:
-            # 1. Validate first.
-            current = self._read_file(CLIENTS_CONF)
-            self._write_file(CLIENTS_CONF, candidate)
+            snap = self._snapshot(files, deletes)
+            # 1. Validate the whole bundle first.
+            self._write_bundle(files, deletes)
             rc, out = self._run_check(["-XC"])
             if rc != 0:
-                self._write_file(CLIENTS_CONF, current)
+                self._restore(snap)
                 return False, "Validation failed:\n" + mask(out)
 
-            # 2. Back up the known-good config, then reload (restart).
-            if current:
-                self._write_file(PREVIOUS_CONF, current)
+            # 2. Reload (restart) with the new bundle in place.
             ok = self._restart_locked()
             if ok:
                 return True, "Configuration applied and FreeRADIUS reloaded."
 
-            # 3. Reload failed -> roll back to the previous config.
-            self._write_file(CLIENTS_CONF, current)
+            # 3. Reload failed -> roll the whole bundle back and restart.
+            self._restore(snap)
             self._restart_locked()
             return False, "Reload failed; rolled back to the previous configuration."
 
@@ -284,27 +338,47 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, controller.tail_log(limit))
         return self._send(404, {"detail": "not found"})
 
+    def _bundle_from_body(self, body: dict) -> tuple[dict, list] | None:
+        """Accept either a full bundle {files, deletes} or legacy {clients_conf}."""
+        if isinstance(body.get("files"), dict):
+            files = body["files"]
+            deletes = body.get("deletes") or []
+            if not all(isinstance(k, str) and isinstance(v, str) for k, v in files.items()):
+                return None
+            if not all(isinstance(d, str) for d in deletes):
+                return None
+            return files, deletes
+        candidate = body.get("clients_conf")
+        if isinstance(candidate, str):
+            return {"clients.conf": candidate}, []
+        return None
+
     def do_POST(self):  # noqa: N802
         if not self._authorized():
             return self._send(401, {"detail": "unauthorized"})
         body = self._read_json()
-        candidate = body.get("clients_conf")
-        if not isinstance(candidate, str):
-            return self._send(400, {"detail": "clients_conf (string) required"})
-        if self.path == "/config/validate":
-            valid, details = controller.validate(candidate)
-            return self._send(200, {
-                "valid": valid,
-                "message": "Configuration valid" if valid else "Configuration invalid",
-                "details": details,
-            })
-        if self.path == "/config/apply":
-            success, details = controller.apply(candidate)
-            return self._send(200, {
-                "success": success,
-                "message": details.splitlines()[0] if details else "",
-                "details": details,
-            })
+        bundle = self._bundle_from_body(body)
+        if bundle is None:
+            return self._send(400, {"detail": "files (object) or clients_conf (string) required"})
+        files, deletes = bundle
+        try:
+            if self.path == "/config/validate":
+                valid, details = controller.validate(files, deletes)
+                return self._send(200, {
+                    "valid": valid,
+                    "message": "Configuration valid" if valid else "Configuration invalid",
+                    "details": details,
+                })
+            if self.path == "/config/apply":
+                success, details = controller.apply(files, deletes)
+                return self._send(200, {
+                    "success": success,
+                    "message": details.splitlines()[0] if details else "",
+                    "details": details,
+                })
+        except ValueError as exc:
+            # Rejected path (allow-list violation) etc.
+            return self._send(400, {"detail": str(exc)})
         return self._send(404, {"detail": "not found"})
 
 

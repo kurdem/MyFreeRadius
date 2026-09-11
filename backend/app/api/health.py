@@ -56,7 +56,8 @@ def dashboard(db: Session = Depends(get_db), _: User = Depends(require_any)):
         ad_status = {
             "status": "configured" if ad.enabled else "disabled",
             "domain": ad.domain,
-            "note": "RADIUS auth against AD is wired in the next slice",
+            "note": "AD auth active once configuration is activated"
+            if ad.enabled else "AD is configured but disabled",
         }
 
     return {

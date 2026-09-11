@@ -16,7 +16,7 @@ def test_generate_contains_client_and_secret(admin_client, fake_agent):
     assert pending is not None
     content = admin_client.get(
         f"/api/v1/configuration/{pending['id']}/content"
-    ).json()["content"]
+    ).json()["files"]["clients.conf"]
     assert "client GenCS01 {" in content
     assert "10.10.30.5" in content
     # Secret is decrypted into the generated config (FreeRADIUS needs it).
@@ -50,7 +50,7 @@ def test_vmware_client_gets_message_authenticator(admin_client, fake_agent):
     pending = admin_client.get("/api/v1/configuration/pending").json()
     content = admin_client.get(
         f"/api/v1/configuration/{pending['id']}/content"
-    ).json()["content"]
+    ).json()["files"]["clients.conf"]
     assert "require_message_authenticator = yes" in content
 
 
@@ -75,6 +75,52 @@ def test_non_vmware_default_off_and_override(admin_client, fake_agent):
     assert clients["VmwareOff"]["require_message_authenticator"] is False
 
 
+def test_ad_enabled_bundle_includes_ldap_and_manager(admin_client, fake_agent):
+    _create_client(admin_client, "AdCS", "10.10.70.5")
+    # Configure + enable AD.
+    admin_client.put(
+        "/api/v1/active-directory",
+        json={
+            "domain": "corp.example.local", "primary_dc": "dc01.corp.example.local",
+            "port": 636, "use_ldaps": True, "verify_tls": True,
+            "base_dn": "DC=corp,DC=example,DC=local",
+            "bind_user": "svc-radius@corp.example.local", "bind_password": "BindP4ss",
+            "timeout_seconds": 5, "enabled": True,
+        },
+        headers=admin_client.csrf_headers,
+    )
+    admin_client.post(
+        "/api/v1/active-directory/groups",
+        json={"name": "Horizon-Users", "group_dn": "CN=Horizon-Users,OU=Groups,DC=corp,DC=example,DC=local"},
+        headers=admin_client.csrf_headers,
+    )
+    pending = admin_client.get("/api/v1/configuration/pending").json()
+    body = admin_client.get(f"/api/v1/configuration/{pending['id']}/content").json()
+    files, deletes = body["files"], body["deletes"]
+
+    assert "mods-enabled/ldap" in files
+    assert "sites-enabled/manager" in files
+    assert "sites-enabled/default" in deletes
+    # LDAP module carries AD connection details and the (decrypted) bind password.
+    assert "ldaps://dc01.corp.example.local" in files["mods-enabled/ldap"]
+    assert "password = 'BindP4ss'" in files["mods-enabled/ldap"]
+    # Manager site enforces the allowed group.
+    assert "CN=Horizon-Users,OU=Groups,DC=corp,DC=example,DC=local" in files["sites-enabled/manager"]
+
+    # Disabling AD reverts to a clients-only bundle (stock default site kept).
+    cfg = {
+        "domain": "corp.example.local", "primary_dc": "dc01.corp.example.local",
+        "port": 636, "use_ldaps": True, "verify_tls": True,
+        "base_dn": "DC=corp,DC=example,DC=local",
+        "bind_user": "svc-radius@corp.example.local", "timeout_seconds": 5, "enabled": False,
+    }
+    admin_client.put("/api/v1/active-directory", json=cfg, headers=admin_client.csrf_headers)
+    pending = admin_client.get("/api/v1/configuration/pending").json()
+    body = admin_client.get(f"/api/v1/configuration/{pending['id']}/content").json()
+    assert "mods-enabled/ldap" not in body["files"]
+    assert body["deletes"] == []
+
+
 def test_disabled_client_excluded(admin_client, fake_agent):
     r = _create_client(admin_client, "DisabledCS", "10.10.50.5")
     cid = r.json()["id"]
@@ -84,5 +130,5 @@ def test_disabled_client_excluded(admin_client, fake_agent):
     pending = admin_client.get("/api/v1/configuration/pending").json()
     content = admin_client.get(
         f"/api/v1/configuration/{pending['id']}/content"
-    ).json()["content"]
+    ).json()["files"]["clients.conf"]
     assert "client DisabledCS {" not in content

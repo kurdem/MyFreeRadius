@@ -50,21 +50,22 @@ def _get(path: str, params: dict | None = None, timeout: float = 15.0) -> dict:
     return resp.json()
 
 
-def validate_config(clients_conf: str) -> dict:
-    """Validate a candidate clients.conf via ``freeradius -XC``.
+def validate_config(files: dict, deletes: list | None = None) -> dict:
+    """Validate a candidate config bundle via ``freeradius -XC``.
 
-    Returns ``{"valid": bool, "message": str, "details": str}``.
+    ``files`` maps managed relative paths to content; ``deletes`` lists managed
+    paths to remove. Returns ``{"valid": bool, "message": str, "details": str}``.
     """
-    return _post("/config/validate", {"clients_conf": clients_conf})
+    return _post("/config/validate", {"files": files, "deletes": deletes or []})
 
 
-def apply_config(clients_conf: str) -> dict:
-    """Validate, back up the current config, write, and reload FreeRADIUS.
+def apply_config(files: dict, deletes: list | None = None) -> dict:
+    """Validate, back up, write the bundle, and reload FreeRADIUS.
 
     Returns ``{"success": bool, "message": str, "details": str}``. The agent
-    rolls back to the previous config if the reload fails.
+    rolls the whole bundle back if the reload fails.
     """
-    return _post("/config/apply", {"clients_conf": clients_conf}, timeout=60.0)
+    return _post("/config/apply", {"files": files, "deletes": deletes or []}, timeout=60.0)
 
 
 def status() -> dict:

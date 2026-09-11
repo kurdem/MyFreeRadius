@@ -39,7 +39,8 @@ VMware Horizon Connection Server  ──RADIUS/1812──▶  FreeRADIUS  ──
 | **Test Authentication**: real end-to-end Access-Request through the full pipeline (via `radclient`) | ✅ |
 | **CA certificate management** for LDAPS validation (upload, expiry warnings, applied to the test + generated LDAP config) | ✅ |
 | **Backup / restore** of the full configuration (secrets kept encrypted; optional passphrase) | ✅ (Phase 5) |
-| Monitoring / metrics, setup wizard | ⏳ |
+| **Setup wizard** (guided first-run: admin → AD → Horizon client → group → activate → test) | ✅ |
+| Monitoring / metrics (Prometheus) | ⏳ |
 | End-to-end "Test Authentication" | ⏳ Phase 4 |
 | Backup / restore, monitoring/metrics | ⏳ Phase 5–6 |
 

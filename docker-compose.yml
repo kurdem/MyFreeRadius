@@ -1,0 +1,105 @@
+# =============================================================================
+# FreeRADIUS Manager - Docker Compose
+#
+#   1. cp .env.example .env  and set strong secrets
+#   2. docker compose build
+#   3. docker compose up -d
+#
+# RADIUS ports (1812/1813 UDP) are published ONLY on the freeradius service.
+# The backend and the control agent are internal to the compose network.
+# =============================================================================
+
+services:
+  database:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-radiusmgr}
+      POSTGRES_USER: ${POSTGRES_USER:-radius}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-radius} -d ${POSTGRES_DB:-radiusmgr}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+  freeradius:
+    build:
+      context: ./freeradius
+    restart: unless-stopped
+    environment:
+      RADIUS_AGENT_TOKEN: ${RADIUS_AGENT_TOKEN:?set RADIUS_AGENT_TOKEN in .env}
+      TZ: ${TZ:-UTC}
+    ports:
+      - "1812:1812/udp"   # RADIUS authentication
+      - "1813:1813/udp"   # RADIUS accounting
+    volumes:
+      - radius-logs:/var/log/radius
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - internal
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+      freeradius:
+        condition: service_started
+    environment:
+      APP_ENV: ${APP_ENV:-prod}
+      TZ: ${TZ:-UTC}
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      FERNET_KEY: ${FERNET_KEY:?set FERNET_KEY in .env}
+      SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-480}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?set BOOTSTRAP_ADMIN_PASSWORD in .env}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-radius}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-radiusmgr}
+      RADIUS_AGENT_URL: http://freeradius:8000
+      RADIUS_AGENT_TOKEN: ${RADIUS_AGENT_TOKEN}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - internal
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_HTTP_PORT:-8080}:8080"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+volumes:
+  db-data:
+  radius-logs:
+
+networks:
+  internal:
+    driver: bridge

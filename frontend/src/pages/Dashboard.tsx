@@ -19,8 +19,8 @@ interface DashboardData {
   radius: { reachable: boolean; running?: boolean; version?: string; error?: string };
   clients: { total: number; enabled: number; disabled: number };
   active_config_version: number | null;
-  active_directory: { status: string; note: string };
-  certificates: { status: string; note: string };
+  active_directory: { status: string; note: string; domain?: string };
+  certificates: { status: string; note?: string };
 }
 
 function StatCard({ title, value, sub }: { title: string; value: string; sub?: string }) {
@@ -131,10 +131,20 @@ export default function Dashboard() {
                 Active Directory
               </Typography>
               <Box sx={{ mt: 1 }}>
-                <Chip label="Not configured" color="warning" size="small" />
+                {(() => {
+                  const s = data.active_directory.status;
+                  const label = s === "configured" ? "Connected"
+                    : s === "disabled" ? "Configured (disabled)"
+                    : "Not configured";
+                  const color = s === "configured" ? "success"
+                    : s === "disabled" ? "default" : "warning";
+                  return <Chip label={label} color={color} size="small" />;
+                })()}
               </Box>
               <Typography variant="caption" color="text.secondary">
-                {data.active_directory.note}
+                {data.active_directory.domain
+                  ? data.active_directory.domain
+                  : data.active_directory.note}
               </Typography>
             </CardContent>
           </Card>
@@ -142,9 +152,9 @@ export default function Dashboard() {
       </Grid>
 
       <Alert severity="info" sx={{ mt: 3 }}>
-        Phase 1 &amp; 2 are active: local login, RADIUS client management, config
-        generation, validation, reload and logs. Active Directory, policies,
-        certificates and end-to-end authentication tests arrive in later phases.
+        Manage RADIUS clients, Active Directory, MFA, certificates and the
+        configuration lifecycle from the menu. Use Test Auth to verify a login
+        end-to-end, and Backup to export the configuration.
       </Alert>
     </Box>
   );

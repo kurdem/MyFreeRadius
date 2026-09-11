@@ -194,7 +194,12 @@ export default function Wizard() {
                 </Grid>
               </Grid>
               <FormControlLabel control={<Switch checked={ad.use_ldaps}
-                onChange={(e) => setAd({ ...ad, use_ldaps: e.target.checked })} />} label="LDAPS" />
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  const port = on ? (Number(ad.port) === 389 ? 636 : ad.port)
+                                   : (Number(ad.port) === 636 ? 389 : ad.port);
+                  setAd({ ...ad, use_ldaps: on, port });
+                }} />} label="LDAPS" />
               <FormControlLabel control={<Switch checked={ad.verify_tls}
                 onChange={(e) => setAd({ ...ad, verify_tls: e.target.checked })} />} label="Verify TLS" />
               <Box sx={{ mt: 1 }}>

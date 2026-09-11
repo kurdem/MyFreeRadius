@@ -237,7 +237,13 @@ export default function ActiveDirectory() {
           </Grid>
           <Grid item xs={12}>
             <FormControlLabel control={<Switch checked={form.use_ldaps}
-              onChange={(e) => set("use_ldaps", e.target.checked)} />} label="Use LDAPS (TLS)" />
+              onChange={(e) => {
+                const on = e.target.checked;
+                // Auto-switch the standard port when it still holds the other default.
+                const port = on ? (Number(form.port) === 389 ? 636 : form.port)
+                                 : (Number(form.port) === 636 ? 389 : form.port);
+                setForm({ ...form, use_ldaps: on, port });
+              }} />} label="Use LDAPS (TLS)" />
             <FormControlLabel control={<Switch checked={form.verify_tls}
               onChange={(e) => set("verify_tls", e.target.checked)} />} label="Verify TLS certificate" />
             <FormControlLabel control={<Switch checked={form.enabled}

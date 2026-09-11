@@ -1,12 +1,16 @@
 """MFA (TOTP) management endpoints (Phase 4)."""
 from __future__ import annotations
 
+import secrets
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ADConfig, User, UserTotp
+from app.models import ADConfig, MfaEnrollmentToken, User, UserTotp
 from app.schemas.mfa import (
     ConfirmRequest,
     EnrollRequest,
@@ -20,6 +24,8 @@ from app.services import audit, totp_service
 router = APIRouter(prefix="/mfa", tags=["mfa"])
 
 _ISSUER = "FreeRADIUS Manager"
+_LINK_TTL_HOURS = 24
+_MAX_CONFIRM_ATTEMPTS = 10
 
 
 def _client_ip(request: Request) -> str | None:
@@ -136,3 +142,111 @@ def delete_token(
         db, username=user.username, action="MFA_DELETE_TOKEN",
         object_ref=username, source_ip=_client_ip(request),
     )
+
+
+# --------------------------------------------------------------------------- #
+# Self-service enrollment links (issue #11)
+# --------------------------------------------------------------------------- #
+class EnrollLinkResponse(BaseModel):
+    token: str
+    username: str
+    expires_at: datetime
+    enroll_path: str
+
+
+class SelfEnrollInfo(BaseModel):
+    username: str
+    otpauth_uri: str
+    secret: str
+
+
+@router.post("/enroll-link", response_model=EnrollLinkResponse)
+def create_enroll_link(
+    payload: EnrollRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_admin),
+):
+    """Create a single-use, time-limited self-service enrollment link."""
+    token = secrets.token_urlsafe(32)
+    secret = totp_service.new_secret()
+    row = MfaEnrollmentToken(
+        token=token,
+        username=payload.username.lower(),
+        secret_encrypted=totp_service.encrypt(secret),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=_LINK_TTL_HOURS),
+    )
+    db.add(row)
+    db.commit()
+    audit.record(
+        db, username=user.username, action="MFA_ENROLL_LINK",
+        object_ref=payload.username, source_ip=_client_ip(request),
+    )
+    return EnrollLinkResponse(
+        token=token, username=row.username, expires_at=row.expires_at,
+        enroll_path=f"/enroll/{token}",
+    )
+
+
+def _valid_token(db: Session, token: str) -> MfaEnrollmentToken:
+    row = db.scalar(select(MfaEnrollmentToken).where(MfaEnrollmentToken.token == token))
+    if row is None or row.used:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="This enrollment link is invalid or already used")
+    expires = row.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < datetime.now(timezone.utc):
+        raise HTTPException(status.HTTP_410_GONE, detail="This enrollment link has expired")
+    return row
+
+
+# NOTE: the two endpoints below are intentionally PUBLIC (no session/CSRF) so a
+# user can self-enroll from a link. The random token is the credential.
+@router.get("/enroll/{token}", response_model=SelfEnrollInfo)
+def self_enroll_info(token: str, db: Session = Depends(get_db)):
+    row = _valid_token(db, token)
+    from app.security.crypto import decrypt_secret
+
+    secret = decrypt_secret(row.secret_encrypted)
+    return SelfEnrollInfo(
+        username=row.username,
+        secret=secret,
+        otpauth_uri=totp_service.provisioning_uri(secret, row.username, _ISSUER),
+    )
+
+
+class SelfConfirm(BaseModel):
+    code: str = Field(min_length=6, max_length=8)
+
+
+@router.post("/enroll/{token}/confirm")
+def self_enroll_confirm(
+    token: str,
+    payload: SelfConfirm,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    row = _valid_token(db, token)
+    if not totp_service.verify(row.secret_encrypted, payload.code):
+        row.attempts += 1
+        if row.attempts >= _MAX_CONFIRM_ATTEMPTS:
+            row.used = True  # invalidate after too many wrong codes
+        db.commit()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Invalid code")
+
+    # Activate the user's TOTP token and consume the link.
+    existing = db.scalar(
+        select(UserTotp).where(func.lower(UserTotp.username) == row.username.lower())
+    )
+    if existing is None:
+        existing = UserTotp(username=row.username.lower())
+        db.add(existing)
+    existing.secret_encrypted = row.secret_encrypted
+    existing.confirmed = True
+    row.used = True
+    db.commit()
+    audit.record(
+        db, username=row.username, action="MFA_SELF_ENROLLED",
+        object_ref=row.username, source_ip=_client_ip(request),
+    )
+    return {"message": "MFA enrolled successfully"}

@@ -13,6 +13,7 @@ from app.api import (
     active_directory,
     auth,
     backup,
+    branding,
     certificates,
     clients,
     configuration,
@@ -106,5 +107,6 @@ app.include_router(radius.router, prefix=API)
 app.include_router(backup.router, prefix=API)
 app.include_router(setup.router, prefix=API)
 app.include_router(users.router, prefix=API)
+app.include_router(branding.router, prefix=API)
 app.include_router(logs.router, prefix=API)
 app.include_router(health.router, prefix=API)

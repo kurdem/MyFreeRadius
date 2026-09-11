@@ -11,9 +11,11 @@ import {
 } from "@mui/material";
 import { useAuth } from "../auth/AuthContext";
 import { errorMessage } from "../api/client";
+import { useBranding } from "../branding/useBranding";
 
 export default function Login() {
   const { login, user } = useAuth();
+  const branding = useBranding();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -50,8 +52,13 @@ export default function Login() {
     >
       <Card sx={{ width: 380, boxShadow: 4 }}>
         <CardContent>
+          {branding.logoUrl && (
+            <Box sx={{ textAlign: "center", mb: 2 }}>
+              <Box component="img" src={branding.logoUrl} alt="Logo" sx={{ maxHeight: 64, maxWidth: "100%" }} />
+            </Box>
+          )}
           <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-            FreeRADIUS Manager
+            {branding.title}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Sign in to manage RADIUS for VMware Horizon &amp; Active Directory.

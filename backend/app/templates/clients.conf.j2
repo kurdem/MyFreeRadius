@@ -20,3 +20,12 @@ client {{ c.name }} {
 {% if not clients %}
 # No enabled RADIUS clients configured yet.
 {% endif %}
+# Loopback client for the built-in "Test Authentication" feature. The secret is
+# the agent token (read from the container environment, not stored here). It is
+# only reachable from inside the FreeRADIUS container.
+client radius_manager_test {
+    ipaddr    = 127.0.0.1
+    secret    = "$ENV{RADIUS_AGENT_TOKEN}"
+    shortname = radius_manager_test
+{% if virtual_server %}    virtual_server = {{ virtual_server }}
+{% endif %}}

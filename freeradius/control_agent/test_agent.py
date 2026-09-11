@@ -43,6 +43,27 @@ def _make_fake_radiusd(bindir: str) -> None:
     os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def _make_fake_radclient(bindir: str) -> None:
+    """Fake radclient: Access-Accept if the request holds User-Password "goodpass"."""
+    script = textwrap.dedent(
+        """\
+        #!/usr/bin/env bash
+        REQ="$(cat)"                 # read the attribute line from stdin
+        echo "Sent Access-Request"
+        echo "$REQ"                  # echo it back (so masking can be checked)
+        if printf '%s' "$REQ" | grep -q 'goodpass'; then
+          echo "Received Access-Accept"
+        else
+          echo "Received Access-Reject"
+        fi
+        """
+    )
+    path = os.path.join(bindir, "radclient")
+    with open(path, "w") as fh:
+        fh.write(script)
+    os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+
+
 def main() -> int:
     tmp = tempfile.mkdtemp()
     raddb = os.path.join(tmp, "raddb")
@@ -53,6 +74,7 @@ def main() -> int:
         fh.write("# initial\n")
 
     _make_fake_radiusd(bindir)
+    _make_fake_radclient(bindir)
     os.environ["PATH"] = bindir + os.pathsep + os.environ["PATH"]
     os.environ["RADDB_DIR"] = raddb
     os.environ["RADIUS_LOG_FILE"] = os.path.join(tmp, "radius.log")
@@ -147,6 +169,15 @@ def main() -> int:
     fresh = agent.RadiusController()
     result = fresh.tail_log(10)
     check("file fallback masks secrets", all("leaked" not in ln for ln in result["lines"]))
+
+    # test authentication: real radclient run (fake), accept + reject + masking
+    accept = ctrl.test_auth("mkurde", "goodpass")
+    check("test_auth returns Access-Accept", accept["result"] == "Access-Accept")
+    check("test_auth masks the password", "goodpass" not in accept["details"])
+    reject = ctrl.test_auth("mkurde", "badpass")
+    check("test_auth returns Access-Reject", reject["result"] == "Access-Reject")
+    inj = ctrl.test_auth('a" evil', "x")
+    check("test_auth rejects injection chars", inj["result"] == "error")
 
     ctrl._stop_locked()
 

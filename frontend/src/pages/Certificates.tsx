@@ -48,6 +48,7 @@ export default function Certificates() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [pem, setPem] = useState("");
+  const [file, setFile] = useState<File | null>(null);
 
   const load = () =>
     api.get<Cert[]>("/certificates").then((r) => setCerts(r.data)).catch((e) => setError(errorMessage(e)));
@@ -56,13 +57,25 @@ export default function Certificates() {
     load();
   }, []);
 
+  const closeDialog = () => {
+    setOpen(false);
+    setName("");
+    setPem("");
+    setFile(null);
+  };
+
   const upload = async () => {
     setError(null);
     try {
-      await api.post("/certificates", { name, pem });
-      setOpen(false);
-      setName("");
-      setPem("");
+      if (file) {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("name", name);
+        await api.post("/certificates/file", form);
+      } else {
+        await api.post("/certificates", { name, pem });
+      }
+      closeDialog();
       load();
     } catch (e) {
       setError(errorMessage(e));
@@ -147,27 +160,54 @@ export default function Certificates() {
         </TableBody>
       </Table>
 
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={open} onClose={closeDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Upload CA Certificate</DialogTitle>
         <DialogContent>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          <TextField label="Name" fullWidth margin="dense" value={name}
+          <TextField label="Name (optional for file upload)" fullWidth margin="dense" value={name}
             onChange={(e) => setName(e.target.value)} helperText="e.g. Corp Root CA" />
+
+          <Box sx={{ mt: 2, mb: 1 }}>
+            <Button variant="outlined" component="label">
+              Choose file (.cer / .crt / .pem / .der)
+              <input
+                type="file"
+                hidden
+                accept=".cer,.crt,.pem,.der,application/x-x509-ca-cert,application/pkix-cert"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setFile(f);
+                  if (f && !name) setName(f.name.replace(/\.[^.]+$/, ""));
+                }}
+              />
+            </Button>
+            {file && (
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Selected: <b>{file.name}</b>{" "}
+                <Button size="small" onClick={() => setFile(null)}>clear</Button>
+              </Typography>
+            )}
+          </Box>
+
+          <Typography variant="caption" color="text.secondary">
+            …or paste the PEM text instead:
+          </Typography>
           <TextField
             label="PEM certificate"
             fullWidth
             margin="dense"
             multiline
-            minRows={8}
+            minRows={6}
             value={pem}
+            disabled={!!file}
             onChange={(e) => setPem(e.target.value)}
             placeholder={"-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"}
             slotProps={{ input: { style: { fontFamily: "monospace", fontSize: 12 } } }}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={upload} disabled={!name || !pem}>
+          <Button onClick={closeDialog}>Cancel</Button>
+          <Button variant="contained" onClick={upload} disabled={!file && (!name || !pem)}>
             Upload
           </Button>
         </DialogActions>

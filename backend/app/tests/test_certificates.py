@@ -25,6 +25,59 @@ def _make_cert(cn: str = "Corp Root CA", days_valid: int = 3650) -> str:
     return cert.public_bytes(serialization.Encoding.PEM).decode()
 
 
+def _make_cert_der(cn: str = "DER CA") -> bytes:
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name).issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.now(timezone.utc) - timedelta(days=1))
+        .not_valid_after(datetime.now(timezone.utc) + timedelta(days=365))
+        .sign(key, hashes.SHA256())
+    )
+    return cert.public_bytes(serialization.Encoding.DER)
+
+
+def test_upload_der_file(admin_client):
+    der = _make_cert_der("AD01 Issuing CA")
+    r = admin_client.post(
+        "/api/v1/certificates/file",
+        files={"file": ("AD01.cer", der, "application/octet-stream")},
+        data={"name": "AD01"},
+        headers=admin_client.csrf_headers,
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert "CN=AD01 Issuing CA" in body["subject"]
+    # Stored normalised to PEM.
+    pem = admin_client.get(f"/api/v1/certificates/{body['id']}/pem").text
+    assert "BEGIN CERTIFICATE" in pem
+
+
+def test_upload_pem_file_name_from_filename(admin_client):
+    pem = _make_cert("File PEM CA").encode()
+    r = admin_client.post(
+        "/api/v1/certificates/file",
+        files={"file": ("corp-root.crt", pem, "application/x-x509-ca-cert")},
+        data={"name": ""},
+        headers=admin_client.csrf_headers,
+    )
+    assert r.status_code == 201
+    assert r.json()["name"] == "corp-root"
+
+
+def test_upload_garbage_file_rejected(admin_client):
+    r = admin_client.post(
+        "/api/v1/certificates/file",
+        files={"file": ("x.cer", b"not a cert", "application/octet-stream")},
+        data={"name": "x"},
+        headers=admin_client.csrf_headers,
+    )
+    assert r.status_code == 400
+
+
 def test_upload_list_get_delete(admin_client):
     pem = _make_cert("Corp Root CA 1")
     r = admin_client.post("/api/v1/certificates", json={"name": "Corp Root", "pem": pem},

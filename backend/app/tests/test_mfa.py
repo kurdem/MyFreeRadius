@@ -105,6 +105,26 @@ def test_mfa_bundle_uses_rest(admin_client, fake_agent):
     assert "mods-enabled/ldap" in deletes  # ldap not used in MFA mode
 
 
+def test_radius_authorize_rlm_rest_native_format(admin_client, monkeypatch):
+    """rlm_rest may send attribute JSON with the token in the query string."""
+    _configure_ad(admin_client, mfa_enabled=True, mode="totp_only")
+    secret = _enroll_and_confirm(admin_client, "nativeuser")
+
+    from app.services import radius_auth
+    monkeypatch.setattr(radius_auth.ldap_service, "find_user",
+                        lambda cfg, u: ("CN=nativeuser,DC=corp", []))
+    monkeypatch.setattr(radius_auth, "_group_ok", lambda db, groups: True)
+
+    otp = pyotp.TOTP(secret).now()
+    body = {"User-Name": {"value": ["nativeuser"]}, "User-Password": {"value": [otp]}}
+    r = admin_client.post(
+        "/api/v1/radius/authorize?token=test-agent-token",
+        json=body,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["result"] == "accept"
+
+
 def test_radius_authorize_bad_token(admin_client):
     r = admin_client.post("/api/v1/radius/authorize",
                           json={"username": "x", "password": "y", "token": "wrong"})

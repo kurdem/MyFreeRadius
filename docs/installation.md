@@ -20,6 +20,20 @@ python -c "from cryptography.fernet import Fernet; print('FERNET_KEY=' + Fernet.
 python -c "import secrets; print('RADIUS_AGENT_TOKEN=' + secrets.token_urlsafe(32))"
 ```
 
+No Python at hand? Generate the same values with **OpenSSL** / shell tools:
+
+```bash
+echo "SECRET_KEY=$(openssl rand -base64 48 | tr '+/' '-_' | tr -d '=')"
+# FERNET_KEY must be 32 url-safe base64 bytes (44 chars ending in '='):
+echo "FERNET_KEY=$(openssl rand -base64 32 | tr '+/' '-_')"
+echo "RADIUS_AGENT_TOKEN=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')"
+```
+
+The `FERNET_KEY` is special: it must be a real Fernet key (32 url-safe base64
+bytes, 44 characters ending in `=`). `tr '+/' '-_'` makes the OpenSSL output
+url-safe; do not strip the trailing `=`. `token_urlsafe`/hex values are **not**
+valid Fernet keys.
+
 Also set `BOOTSTRAP_ADMIN_PASSWORD` and `POSTGRES_PASSWORD`. Set `APP_ENV=prod`
 for any non-local deployment (hardens cookies and hides internal errors).
 

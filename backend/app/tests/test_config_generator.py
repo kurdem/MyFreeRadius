@@ -100,14 +100,17 @@ def test_ad_enabled_bundle_includes_ldap_and_manager(admin_client, fake_agent):
 
     assert "mods-enabled/ldap" in files
     assert "sites-enabled/manager" in files
-    assert "sites-enabled/default" in deletes
+    # We never delete the stock default site; clients route to "manager" instead.
+    assert "sites-enabled/default" not in deletes
+    assert "mods-enabled/rest" in deletes  # not used in ldap mode
+    assert "virtual_server = manager" in files["clients.conf"]
     # LDAP module carries AD connection details and the (decrypted) bind password.
     assert "ldaps://dc01.corp.example.local" in files["mods-enabled/ldap"]
     assert "password = 'BindP4ss'" in files["mods-enabled/ldap"]
     # Manager site enforces the allowed group.
     assert "CN=Horizon-Users,OU=Groups,DC=corp,DC=example,DC=local" in files["sites-enabled/manager"]
 
-    # Disabling AD reverts to a clients-only bundle (stock default site kept).
+    # Disabling AD reverts to a clients-only bundle; managed FR files are removed.
     cfg = {
         "domain": "corp.example.local", "primary_dc": "dc01.corp.example.local",
         "port": 636, "use_ldaps": True, "verify_tls": True,
@@ -118,7 +121,8 @@ def test_ad_enabled_bundle_includes_ldap_and_manager(admin_client, fake_agent):
     pending = admin_client.get("/api/v1/configuration/pending").json()
     body = admin_client.get(f"/api/v1/configuration/{pending['id']}/content").json()
     assert "mods-enabled/ldap" not in body["files"]
-    assert body["deletes"] == []
+    assert "virtual_server = manager" not in body["files"]["clients.conf"]
+    assert set(body["deletes"]) == {"mods-enabled/ldap", "mods-enabled/rest", "sites-enabled/manager"}
 
 
 def test_disabled_client_excluded(admin_client, fake_agent):

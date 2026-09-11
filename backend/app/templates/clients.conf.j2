@@ -12,7 +12,8 @@ client {{ c.name }} {
     secret    = "{{ c.secret }}"
     shortname = {{ c.name }}
     nas_type  = {{ c.nas_type }}
-{% if c.require_message_authenticator %}    require_message_authenticator = yes
+{% if virtual_server %}    virtual_server = {{ virtual_server }}
+{% endif %}{% if c.require_message_authenticator %}    require_message_authenticator = yes
 {% endif %}{% if c.description %}    # {{ c.description }}
 {% endif %}}
 {% endfor %}

@@ -35,6 +35,16 @@ class ADConfig(Base, TimestampMixin):
     timeout_seconds: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # --- MFA (Phase 4) ---------------------------------------------------- #
+    # When enabled, authentication goes through the backend (rlm_rest) which
+    # verifies a TOTP second factor. Modes:
+    #   "totp_only"            - RADIUS validates the OTP only; Horizon validates
+    #                            the Windows/AD password itself (recommended).
+    #   "ad_password_plus_totp"- RADIUS validates AD password + appended 6-digit
+    #                            OTP (User-Password = "<ad-password><otp>").
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mfa_mode: Mapped[str] = mapped_column(String(32), default="totp_only", nullable=False)
+
 
 class GroupAccess(str, enum.Enum):
     ALLOW = "allow"

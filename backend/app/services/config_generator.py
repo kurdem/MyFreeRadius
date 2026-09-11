@@ -49,8 +49,12 @@ def checksum(content: str) -> str:
     return hashlib.sha256(content.encode()).hexdigest()
 
 
-def generate_clients_conf(db: Session, *, version: int) -> str:
-    """Render clients.conf for all *enabled* clients, ordered by name."""
+def generate_clients_conf(db: Session, *, version: int, virtual_server: str | None = None) -> str:
+    """Render clients.conf for all *enabled* clients, ordered by name.
+
+    When ``virtual_server`` is set, each client is routed to that FreeRADIUS
+    virtual server (used to send requests to the generated "manager" server).
+    """
     clients = db.scalars(
         select(RadiusClient).where(RadiusClient.enabled.is_(True)).order_by(RadiusClient.name)
     ).all()
@@ -69,6 +73,7 @@ def generate_clients_conf(db: Session, *, version: int) -> str:
     return template.render(
         clients=rendered_clients,
         version=version,
+        virtual_server=virtual_server,
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
     )
 
@@ -99,7 +104,7 @@ def generate_ldap_module(ad: ADConfig) -> str:
 
 
 def generate_manager_site(groups: list[ADGroup]) -> str:
-    """Render sites-enabled/manager with AD group authorization."""
+    """Render sites-enabled/manager (LDAP mode) with AD group authorization."""
     allow_groups = [g.group_dn for g in groups if g.access == GroupAccess.ALLOW]
     deny_groups = [g.group_dn for g in groups if g.access == GroupAccess.DENY]
     return _fr_env.get_template("manager_site.conf.j2").render(
@@ -109,29 +114,56 @@ def generate_manager_site(groups: list[ADGroup]) -> str:
     )
 
 
-def generate_bundle(db: Session, *, version: int) -> dict:
+def generate_rest_module(backend_url: str) -> str:
+    """Render mods-enabled/rest pointing at the manager backend."""
+    return _fr_env.get_template("rest.conf.j2").render(
+        generated_at=_now(),
+        backend_url=backend_url.rstrip("/"),
+    )
+
+
+def generate_manager_site_rest() -> str:
+    """Render sites-enabled/manager (MFA mode) that delegates to rlm_rest."""
+    return _fr_env.get_template("manager_site_rest.conf.j2").render(generated_at=_now())
+
+
+# Managed FreeRADIUS files that may be present depending on mode. Any not written
+# in the current state is listed for deletion so mode switches are clean. We
+# never delete the stock "default" site (clients route to "manager" instead).
+_MANAGED_FR_FILES = {"mods-enabled/ldap", "mods-enabled/rest", "sites-enabled/manager"}
+
+
+def generate_bundle(db: Session, *, version: int, backend_url: str = "http://backend:8000") -> dict:
     """Build the full config bundle from the database.
 
     Returns ``{"files": {relpath: content}, "deletes": [relpath]}``.
 
-    * AD disabled/unconfigured: only ``clients.conf`` (stock "default" site is
-      left in place - unchanged, boot-safe behaviour).
-    * AD enabled: also emit the ``ldap`` module and the ``manager`` virtual
-      server, and remove the stock ``default`` site (they would both listen on
-      1812/1813).
+    States:
+      * AD disabled          -> only ``clients.conf`` (stock "default" handles them).
+      * AD enabled, MFA off   -> ``clients.conf`` (routed to "manager") + ldap
+                                 module + "manager" site (PAP-bind + group authz).
+      * AD enabled, MFA on    -> ``clients.conf`` (routed) + rest module + "manager"
+                                 site delegating to the backend (TOTP + AD).
     """
-    files: dict[str, str] = {
-        "clients.conf": generate_clients_conf(db, version=version),
-    }
-    deletes: list[str] = []
-
     ad = db.get(ADConfig, 1)
-    if ad is not None and ad.enabled:
+    ad_enabled = ad is not None and ad.enabled
+    mfa_enabled = ad is not None and ad.enabled and ad.mfa_enabled
+
+    virtual_server = "manager" if ad_enabled else None
+    files: dict[str, str] = {
+        "clients.conf": generate_clients_conf(db, version=version, virtual_server=virtual_server),
+    }
+
+    if mfa_enabled:
+        files["mods-enabled/rest"] = generate_rest_module(backend_url)
+        files["sites-enabled/manager"] = generate_manager_site_rest()
+    elif ad_enabled:
         groups = db.scalars(select(ADGroup).order_by(ADGroup.name)).all()
         files["mods-enabled/ldap"] = generate_ldap_module(ad)
         files["sites-enabled/manager"] = generate_manager_site(list(groups))
-        deletes.append("sites-enabled/default")
 
+    # Anything managed but not written in this state should be removed.
+    deletes = sorted(_MANAGED_FR_FILES - set(files.keys()))
     return {"files": files, "deletes": deletes}
 
 

@@ -95,32 +95,32 @@ def main() -> int:
     with open(os.path.join(raddb, "clients.conf")) as fh:
         check("invalid apply preserved good config", "client good" in fh.read())
 
-    # multi-file apply: writes ldap module + manager site, removes default site
-    os.makedirs(os.path.join(raddb, "sites-enabled"), exist_ok=True)
-    with open(os.path.join(raddb, "sites-enabled", "default"), "w") as fh:
-        fh.write("server default {}\n")
+    # multi-file apply: writes ldap module + manager site, removes a stale rest module
+    os.makedirs(os.path.join(raddb, "mods-enabled"), exist_ok=True)
+    with open(os.path.join(raddb, "mods-enabled", "rest"), "w") as fh:
+        fh.write("rest { }\n")
     ok, details = ctrl.apply(
         {
             "clients.conf": "client c {\n ipaddr=10.0.0.3\n secret=\"z\"\n}\n",
             "mods-enabled/ldap": "ldap { server = 'dc01' }\n",
             "sites-enabled/manager": "server manager {}\n",
         },
-        deletes=["sites-enabled/default"],
+        deletes=["mods-enabled/rest"],
     )
     check("multi-file apply succeeds", ok)
     check("ldap module written", os.path.exists(os.path.join(raddb, "mods-enabled", "ldap")))
     check("manager site written", os.path.exists(os.path.join(raddb, "sites-enabled", "manager")))
-    check("default site removed", not os.path.exists(os.path.join(raddb, "sites-enabled", "default")))
+    check("stale rest module removed", not os.path.exists(os.path.join(raddb, "mods-enabled", "rest")))
 
-    # invalid multi-file apply rolls the WHOLE bundle back (default restored)
-    with open(os.path.join(raddb, "sites-enabled", "default"), "w") as fh:
-        fh.write("server default {}\n")
+    # invalid multi-file apply rolls the WHOLE bundle back (deleted file restored)
+    with open(os.path.join(raddb, "mods-enabled", "rest"), "w") as fh:
+        fh.write("rest { }\n")
     ok, _ = ctrl.apply(
         {"clients.conf": "client d {}\n", "sites-enabled/manager": "INVALID_MARKER\n"},
-        deletes=["sites-enabled/default"],
+        deletes=["mods-enabled/rest"],
     )
     check("invalid multi-file apply fails", not ok)
-    check("rollback restored default site", os.path.exists(os.path.join(raddb, "sites-enabled", "default")))
+    check("rollback restored deleted file", os.path.exists(os.path.join(raddb, "mods-enabled", "rest")))
     with open(os.path.join(raddb, "sites-enabled", "manager")) as fh:
         check("rollback restored manager site", "INVALID_MARKER" not in fh.read())
 

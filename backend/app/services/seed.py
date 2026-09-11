@@ -21,6 +21,10 @@ _ADDED_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "radius_clients": [
         ("require_message_authenticator", "BOOLEAN NOT NULL DEFAULT {false}"),
     ],
+    "ad_config": [
+        ("mfa_enabled", "BOOLEAN NOT NULL DEFAULT {false}"),
+        ("mfa_mode", "VARCHAR(32) NOT NULL DEFAULT 'totp_only'"),
+    ],
 }
 
 

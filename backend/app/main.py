@@ -19,6 +19,7 @@ from app.api import (
     configuration,
     health,
     logs,
+    metrics,
     mfa,
     radius,
     setup,
@@ -108,5 +109,7 @@ app.include_router(backup.router, prefix=API)
 app.include_router(setup.router, prefix=API)
 app.include_router(users.router, prefix=API)
 app.include_router(branding.router, prefix=API)
+# Prometheus scrape endpoint at /metrics (root, no API prefix).
+app.include_router(metrics.router)
 app.include_router(logs.router, prefix=API)
 app.include_router(health.router, prefix=API)

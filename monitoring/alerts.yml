@@ -1,0 +1,48 @@
+# Example Prometheus alert rules for FreeRADIUS Manager.
+groups:
+  - name: freeradius-manager
+    rules:
+      - alert: FreeRadiusDown
+        expr: radiusmgr_freeradius_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FreeRADIUS is not running"
+          description: "The FreeRADIUS process is down or the control agent is unreachable."
+
+      - alert: BackendDown
+        expr: up{job="freeradius-manager"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FreeRADIUS Manager backend is not scrapeable"
+
+      - alert: CaCertificateExpiringSoon
+        expr: radiusmgr_certificate_days_left >= 0 and radiusmgr_certificate_days_left <= 30
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "A CA certificate expires within 30 days"
+          description: "Soonest CA certificate expiry: {{ $value }} days."
+
+      - alert: CaCertificateExpired
+        expr: radiusmgr_certificate_days_left < 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "A CA certificate has expired"
+
+      - alert: HighAuthRejectRate
+        expr: |
+          sum(rate(radiusmgr_auth_total{result="reject"}[10m]))
+            /
+          clamp_min(sum(rate(radiusmgr_auth_total[10m])), 0.001) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than half of RADIUS authentications are being rejected"

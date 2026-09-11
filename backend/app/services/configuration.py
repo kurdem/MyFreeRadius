@@ -79,11 +79,14 @@ def validate(version: ConfigVersion) -> dict:
 
 def activate(db: Session, version: ConfigVersion) -> dict:
     """Apply ``version`` to FreeRADIUS and update version states on success."""
+    from app.services import metrics
+
     files, deletes = _bundle(version)
     result = radius_agent.apply_config(files, deletes)
     if not result.get("success"):
         version.state = ConfigState.FAILED
         db.commit()
+        metrics.ACTIVATION_TOTAL.labels(result="failure").inc()
         return result
 
     # Demote the current active version, promote this one.
@@ -92,6 +95,7 @@ def activate(db: Session, version: ConfigVersion) -> dict:
         active.state = ConfigState.PREVIOUS
     version.state = ConfigState.ACTIVE
     db.commit()
+    metrics.ACTIVATION_TOTAL.labels(result="success").inc()
     return result
 
 

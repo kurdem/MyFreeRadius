@@ -32,6 +32,61 @@ def ready(db: Session = Depends(get_db)):
     return {"status": "ready" if db_ok else "degraded", "database": db_ok}
 
 
+@router.get("/health/detailed")
+def health_detailed(db: Session = Depends(get_db), _: User = Depends(require_any)):
+    """Per-component health with OK / WARNING / CRITICAL (spec section 20)."""
+    components: list[dict] = [{"name": "application", "status": "OK"}]
+
+    # Database
+    try:
+        db.execute(select(1))
+        components.append({"name": "database", "status": "OK"})
+    except Exception as exc:  # noqa: BLE001
+        components.append({"name": "database", "status": "CRITICAL", "detail": str(exc)[:120]})
+
+    # FreeRADIUS control agent + process
+    try:
+        st = radius_agent.status()
+        running = bool(st.get("running"))
+        components.append({
+            "name": "freeradius",
+            "status": "OK" if running else "CRITICAL",
+            "detail": st.get("version") or ("running" if running else "not running"),
+        })
+    except AgentError as exc:
+        components.append({"name": "freeradius", "status": "CRITICAL", "detail": str(exc)[:120]})
+
+    # Certificates (soonest expiry)
+    certs = db.scalars(select(CaCertificate)).all()
+    if not certs:
+        components.append({"name": "certificates", "status": "OK", "detail": "none uploaded"})
+    else:
+        worst, days = "OK", None
+        for c in certs:
+            s, d = cert_service.status_for(c.not_after)
+            days = d if days is None else min(days, d)
+            if s == "expired":
+                worst = "CRITICAL"
+            elif s == "expiring" and worst != "CRITICAL":
+                worst = "WARNING"
+        components.append({"name": "certificates", "status": worst, "detail": f"min {days} days left"})
+
+    # Active Directory (configuration state, not a live bind)
+    ad = db.get(ADConfig, 1)
+    if ad is None:
+        components.append({"name": "active_directory", "status": "OK", "detail": "not configured"})
+    else:
+        components.append({
+            "name": "active_directory",
+            "status": "OK" if ad.enabled else "WARNING",
+            "detail": ad.domain + (" (enabled)" if ad.enabled else " (disabled)"),
+        })
+
+    order = {"OK": 0, "WARNING": 1, "CRITICAL": 2}
+    overall = max((c["status"] for c in components), key=lambda s: order[s])
+    return {"status": overall, "components": components}
+
+
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db), _: User = Depends(require_any)):
     """Aggregate status for the dashboard (spec section 19)."""

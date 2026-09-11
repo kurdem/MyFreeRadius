@@ -17,6 +17,7 @@ import Wizard from "./pages/Wizard";
 import Users from "./pages/Users";
 import Enroll from "./pages/Enroll";
 import Branding from "./pages/Branding";
+import Monitoring from "./pages/Monitoring";
 import ComingSoon from "./pages/ComingSoon";
 import type { ReactNode } from "react";
 
@@ -63,6 +64,7 @@ export default function App() {
       <Route path="/users" element={<Protected><Users /></Protected>} />
       <Route path="/branding" element={<Protected><Branding /></Protected>} />
       <Route path="/test-auth" element={<Protected><TestAuth /></Protected>} />
+      <Route path="/monitoring" element={<Protected><Monitoring /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

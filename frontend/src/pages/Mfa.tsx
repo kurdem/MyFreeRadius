@@ -26,6 +26,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 import QRCode from "qrcode";
 import { api, errorMessage } from "../api/client";
+import { copyToClipboard } from "../utils/clipboard";
 import { useAuth } from "../auth/AuthContext";
 
 interface Token {
@@ -246,7 +247,12 @@ export default function Mfa() {
               <TextField label="Enrollment link" fullWidth value={link.url}
                 InputProps={{ readOnly: true }} onFocus={(e) => e.target.select()} />
               <Stack direction="row" spacing={1} sx={{ mt: 1 }} alignItems="center">
-                <Button size="small" onClick={() => navigator.clipboard?.writeText(link.url)}>
+                <Button size="small" onClick={async () => {
+                  const ok = await copyToClipboard(link.url);
+                  setMsg(ok
+                    ? { s: "success", t: "Link copied to clipboard." }
+                    : { s: "info", t: "Could not copy automatically — select the link field and copy manually." });
+                }}>
                   Copy link
                 </Button>
                 <Typography variant="caption" color="text.secondary">

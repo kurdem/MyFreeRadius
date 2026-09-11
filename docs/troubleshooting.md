@@ -45,10 +45,23 @@ directly, first `POST /api/v1/auth/login`, then send the value of the
 
 ## No lines on the RADIUS Live Log
 
-- Authentication logging is enabled in the image (`log { auth = yes }`). If you
-  customised `radiusd.conf`, ensure `destination = files` and the log path
-  matches `RADIUS_LOG_FILE` (`/var/log/radius/radius.log`).
-- The `radius-logs` volume persists logs across restarts.
+- The control agent captures FreeRADIUS's own stdout/stderr into a ring buffer,
+  so the Live Log does not depend on a specific file path. If it is empty, the
+  agent returns a hint line telling you whether FreeRADIUS is running.
+- An empty log usually just means **no RADIUS traffic yet** — lines appear once
+  a request arrives (e.g. an `Access-Request` from a Connection Server). Send a
+  test with `radclient` to confirm:
+  ```bash
+  echo "User-Name=test,User-Password=test" | \
+    radclient -x <freeradius-host>:1812 auth <shared-secret>
+  ```
+- The image sets `log { destination = stdout; auth = yes }` so authentication
+  results ("Login OK" / "Login incorrect") are captured. If you customised
+  `radiusd.conf`, keep `destination = stdout` for the Live Log to work.
+- Captured lines are also mirrored to `RADIUS_LOG_FILE`
+  (`/var/log/radius/radius.log`) on the `radius-logs` volume for persistence.
+- If the Live Log shows a 502/"control agent unreachable", the FreeRADIUS
+  container or its agent is down — check `docker compose logs freeradius`.
 
 ## Building the FreeRADIUS image
 

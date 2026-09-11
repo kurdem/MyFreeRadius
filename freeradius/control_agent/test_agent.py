@@ -28,7 +28,11 @@ def _make_fake_radiusd(bindir: str) -> None:
               echo "Error: INVALID_MARKER on line 1"; exit 1
             fi
             echo "Configuration appears to be OK"; exit 0 ;;
-          -f) exec sleep 3600 ;;
+          -f)
+            echo "Listening on auth address * port 1812"
+            echo "Ready to process requests"
+            echo "Login OK: [max.mustermann] secret = supersecret"
+            exec sleep 3600 ;;
           *) exit 0 ;;
         esac
         """
@@ -91,12 +95,22 @@ def main() -> int:
     with open(os.path.join(raddb, "clients.conf")) as fh:
         check("invalid apply preserved good config", "client good" in fh.read())
 
-    # log tailing + masking
-    with open(os.environ["RADIUS_LOG_FILE"], "w") as fh:
-        fh.write("Access-Accept\nsecret = leaked\n")
-    result = ctrl.tail_log(10)
-    check("tail returns lines", result["count"] == 2)
-    check("tail masks secrets", all("leaked" not in ln for ln in result["lines"]))
+    # live log: radiusd stdout is captured into the ring buffer
+    import time as _t
+    _t.sleep(0.5)  # let the reader thread drain the fake's stdout
+    result = ctrl.tail_log(50)
+    check("live log captured radiusd stdout",
+          any("Ready to process requests" in ln for ln in result["lines"]))
+    check("live log masks secrets in captured output",
+          all("supersecret" not in ln for ln in result["lines"]))
+
+    # file-fallback tailing + masking (buffer takes precedence, so test via a
+    # fresh controller whose process has not produced output yet)
+    with open(os.environ["RADIUS_LOG_FILE"], "a") as fh:
+        fh.write("secret = leaked\n")
+    fresh = agent.RadiusController()
+    result = fresh.tail_log(10)
+    check("file fallback masks secrets", all("leaked" not in ln for ln in result["lines"]))
 
     ctrl._stop_locked()
 

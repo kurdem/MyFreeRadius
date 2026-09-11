@@ -10,10 +10,10 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends python3 \
  && rm -rf /var/lib/apt/lists/*
 
-# Enable authentication logging to a file so the "Live Log" view has data,
-# and make sure logs go to a file the agent can tail (spec section 13).
+# Log to stdout (captured by the control agent's ring buffer) and enable
+# authentication logging so the "Live Log" view has real data (spec section 13).
 RUN sed -i \
-      -e 's/^\(\s*\)destination = .*/\1destination = files/' \
+      -e 's/^\(\s*\)destination = .*/\1destination = stdout/' \
       -e 's/^\(\s*\)auth = no/\1auth = yes/' \
       /etc/raddb/radiusd.conf
 

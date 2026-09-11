@@ -20,6 +20,7 @@ list and ``shell=False``.
 """
 from __future__ import annotations
 
+import collections
 import json
 import os
 import re
@@ -60,6 +61,12 @@ class RadiusController:
         self._lock = threading.Lock()
         self._proc: subprocess.Popen | None = None
         self._binary = _radiusd_binary()
+        # Live log ring buffer, fed from radiusd's own stdout/stderr. This is
+        # independent of the on-disk log path/permissions, so the Live Log works
+        # regardless of how radiusd is configured to log.
+        self._log_buffer: collections.deque[str] = collections.deque(
+            maxlen=int(os.environ.get("RADIUS_LOG_BUFFER", "5000"))
+        )
 
     # -- process lifecycle -------------------------------------------------- #
     def start(self) -> None:
@@ -69,11 +76,42 @@ class RadiusController:
     def _start_locked(self) -> None:
         if self._proc and self._proc.poll() is None:
             return
-        # -f: foreground (we manage the process); logging goes to the file
-        # configured in radiusd.conf. stdout/stderr also surface startup errors.
+        # -f: foreground (we manage the process). We capture stdout+stderr and
+        # fan it out to the ring buffer and the log file, so the Live Log always
+        # has data even if file logging is misconfigured.
         self._proc = subprocess.Popen(
-            [self._binary, "-f"], shell=False,
+            [self._binary, "-f"],
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
         )
+        reader = threading.Thread(target=self._pump_output, args=(self._proc,), daemon=True)
+        reader.start()
+
+    def _pump_output(self, proc: subprocess.Popen) -> None:
+        """Read radiusd output line by line into the buffer and the log file."""
+        stream = proc.stdout
+        if stream is None:
+            return
+        try:
+            log_fh = open(LOG_FILE, "a", errors="replace")
+        except OSError:
+            log_fh = None
+        try:
+            for raw in stream:
+                line = mask(raw.rstrip("\n"))
+                self._log_buffer.append(line)
+                if log_fh is not None:
+                    try:
+                        log_fh.write(line + "\n")
+                        log_fh.flush()
+                    except OSError:
+                        pass
+        finally:
+            if log_fh is not None:
+                log_fh.close()
 
     def _stop_locked(self, timeout: float = 10.0) -> None:
         if not self._proc:
@@ -156,13 +194,25 @@ class RadiusController:
 
     # -- logs --------------------------------------------------------------- #
     def tail_log(self, limit: int) -> dict:
+        # Prefer the in-memory buffer (captured from radiusd's own output).
+        if self._log_buffer:
+            lines = list(self._log_buffer)[-limit:]
+            return {"lines": lines, "count": len(lines)}
+        # Fall back to the log file if the buffer is empty (e.g. just started).
         try:
             with open(LOG_FILE, "r", errors="replace") as fh:
-                lines = fh.readlines()[-limit:]
+                file_lines = [mask(x.rstrip("\n")) for x in fh.readlines()[-limit:]]
+            if file_lines:
+                return {"lines": file_lines, "count": len(file_lines)}
         except FileNotFoundError:
-            lines = []
-        masked = [mask(line.rstrip("\n")) for line in lines]
-        return {"lines": masked, "count": len(masked)}
+            pass
+        # Nothing yet: return a hint instead of an empty view so the UI is clear.
+        hint = (
+            "No RADIUS log output yet. FreeRADIUS "
+            + ("is running" if self.is_running() else "is NOT running")
+            + "; lines appear here once it logs activity (e.g. an Access-Request)."
+        )
+        return {"lines": [hint], "count": 1}
 
     # -- file helpers ------------------------------------------------------- #
     @staticmethod

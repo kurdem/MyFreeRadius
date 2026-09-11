@@ -9,10 +9,13 @@ rest {
     connect_uri = "[[ backend_url ]]"
 
     authenticate {
-        uri = "[[ backend_url ]]/api/v1/radius/authorize"
+        # The shared token is passed in the query string so it arrives regardless
+        # of how rlm_rest encodes the body. The body carries username/password;
+        # the backend also accepts rlm_rest's native attribute JSON.
+        uri = "[[ backend_url ]]/api/v1/radius/authorize?token=$ENV{RADIUS_AGENT_TOKEN}"
         method = 'post'
         body = 'json'
-        data = '{"username":"%{User-Name}","password":"%{User-Password}","token":"$ENV{RADIUS_AGENT_TOKEN}"}'
+        data = '{"username":"%{User-Name}","password":"%{User-Password}"}'
     }
 
     pool {

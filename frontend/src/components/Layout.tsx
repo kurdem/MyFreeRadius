@@ -28,8 +28,10 @@ import PolicyIcon from "@mui/icons-material/Policy";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import ScienceIcon from "@mui/icons-material/Science";
 import PeopleIcon from "@mui/icons-material/People";
+import PaletteIcon from "@mui/icons-material/Palette";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useAuth } from "../auth/AuthContext";
+import { useBranding } from "../branding/useBranding";
 
 const drawerWidth = 240;
 
@@ -55,10 +57,12 @@ const navItems: NavItem[] = [
   { label: "Certificates", to: "/certificates", icon: <VerifiedUserIcon /> },
   { label: "Backup", to: "/backup", icon: <BackupIcon /> },
   { label: "Users", to: "/users", icon: <PeopleIcon />, adminOnly: true },
+  { label: "Branding", to: "/branding", icon: <PaletteIcon />, adminOnly: true },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout, isAdmin } = useAuth();
+  const branding = useBranding();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -92,8 +96,16 @@ export default function Layout({ children }: { children: ReactNode }) {
     <Box sx={{ display: "flex" }}>
       <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
         <Toolbar>
+          {branding.logoUrl && (
+            <Box
+              component="img"
+              src={branding.logoUrl}
+              alt="Logo"
+              sx={{ height: 32, mr: 1.5, bgcolor: "white", borderRadius: 0.5, p: 0.25 }}
+            />
+          )}
           <Typography variant="h6" sx={{ flexGrow: 1 }} noWrap>
-            FreeRADIUS Manager
+            {branding.title}
           </Typography>
           {user && (
             <Chip

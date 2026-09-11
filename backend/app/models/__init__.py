@@ -4,6 +4,7 @@ from app.models.user import User, UserRole
 from app.models.client import RadiusClient, ClientGroup
 from app.models.config_version import ConfigVersion, ConfigState
 from app.models.audit import AuditLog
+from app.models.active_directory import ADConfig, ADGroup, GroupAccess
 
 __all__ = [
     "Base",
@@ -14,4 +15,7 @@ __all__ = [
     "ConfigVersion",
     "ConfigState",
     "AuditLog",
+    "ADConfig",
+    "ADGroup",
+    "GroupAccess",
 ]

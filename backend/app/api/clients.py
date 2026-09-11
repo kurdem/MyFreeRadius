@@ -35,6 +35,7 @@ def _to_out(c: RadiusClient) -> ClientOut:
         location=c.location,
         tags=c.tags,
         enabled=c.enabled,
+        require_message_authenticator=c.require_message_authenticator,
         group_id=c.group_id,
         has_secret=bool(c.shared_secret_encrypted),
     )
@@ -65,6 +66,12 @@ def create_client(
     if payload.group_id is not None and not db.get(ClientGroup, payload.group_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="group_id does not exist")
 
+    # Default the BlastRADIUS requirement from the NAS type when unspecified:
+    # VMware Horizon / UAG sends a Message-Authenticator, so require it there.
+    require_msg_auth = payload.require_message_authenticator
+    if require_msg_auth is None:
+        require_msg_auth = payload.nas_type == "vmware"
+
     client = RadiusClient(
         name=payload.name,
         ipaddr=payload.ipaddr,
@@ -74,6 +81,7 @@ def create_client(
         location=payload.location,
         tags=payload.tags,
         enabled=payload.enabled,
+        require_message_authenticator=require_msg_auth,
         group_id=payload.group_id,
     )
     db.add(client)

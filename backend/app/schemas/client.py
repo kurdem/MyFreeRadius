@@ -40,6 +40,8 @@ class ClientBase(BaseModel):
     location: str | None = Field(default=None, max_length=120)
     tags: str | None = Field(default=None, max_length=255)
     enabled: bool = True
+    # None on create -> resolved by NAS type (on for vmware). Explicit value wins.
+    require_message_authenticator: bool | None = None
     group_id: int | None = None
 
     @field_validator("name")
@@ -88,6 +90,7 @@ class ClientUpdate(BaseModel):
     location: str | None = Field(default=None, max_length=120)
     tags: str | None = Field(default=None, max_length=255)
     enabled: bool | None = None
+    require_message_authenticator: bool | None = None
     group_id: int | None = None
     shared_secret: str | None = Field(default=None, min_length=8, max_length=128)
 

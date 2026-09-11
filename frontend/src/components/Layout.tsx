@@ -42,7 +42,7 @@ const navItems: NavItem[] = [
   { label: "Client Groups", to: "/client-groups", icon: <GroupWorkIcon /> },
   { label: "Configuration", to: "/configuration", icon: <SettingsEthernetIcon /> },
   { label: "Logs", to: "/logs", icon: <ArticleIcon /> },
-  { label: "Active Directory", to: "/active-directory", icon: <DomainIcon />, soon: true },
+  { label: "Active Directory", to: "/active-directory", icon: <DomainIcon /> },
   { label: "Policies", to: "/policies", icon: <PolicyIcon />, soon: true },
   { label: "Certificates", to: "/certificates", icon: <VerifiedUserIcon />, soon: true },
   { label: "Test Auth", to: "/test-auth", icon: <ScienceIcon />, soon: true },

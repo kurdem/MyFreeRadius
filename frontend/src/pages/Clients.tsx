@@ -39,6 +39,7 @@ interface Client {
   location?: string | null;
   tags?: string | null;
   enabled: boolean;
+  require_message_authenticator: boolean;
   group_id?: number | null;
   has_secret: boolean;
 }
@@ -59,6 +60,7 @@ const empty = {
   location: "",
   tags: "",
   enabled: true,
+  require_message_authenticator: true,
   group_id: "" as string | number,
 };
 
@@ -96,6 +98,7 @@ export default function Clients() {
       location: c.location ?? "",
       tags: c.tags ?? "",
       enabled: c.enabled,
+      require_message_authenticator: c.require_message_authenticator ?? true,
       group_id: c.group_id ?? "",
     });
     setError(null);
@@ -113,6 +116,7 @@ export default function Clients() {
         location: form.location || null,
         tags: form.tags || null,
         enabled: form.enabled,
+        require_message_authenticator: form.require_message_authenticator,
         group_id: form.group_id === "" ? null : Number(form.group_id),
       };
       if (form.shared_secret) payload.shared_secret = form.shared_secret;
@@ -304,6 +308,21 @@ export default function Clients() {
             }
             label="Enabled"
           />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={form.require_message_authenticator}
+                onChange={(e) =>
+                  setForm({ ...form, require_message_authenticator: e.target.checked })
+                }
+              />
+            }
+            label="Require Message-Authenticator (BlastRADIUS mitigation)"
+          />
+          <Typography variant="caption" color="text.secondary" display="block">
+            Recommended for VMware Horizon / UAG, which send a Message-Authenticator.
+            Leave off for clients that do not send one.
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancel</Button>

@@ -63,14 +63,15 @@ def fake_agent(monkeypatch):
     """Replace control-agent calls with in-memory fakes (no FreeRADIUS needed)."""
     state = {"applied": None}
 
-    def _validate(conf: str):
-        # Treat an obviously broken marker as invalid, else valid.
-        valid = "INVALID_MARKER" not in conf
+    def _validate(files: dict, deletes=None):
+        blob = "".join(files.values())
+        valid = "INVALID_MARKER" not in blob
         return {"valid": valid, "message": "ok" if valid else "syntax error",
                 "details": None}
 
-    def _apply(conf: str):
-        state["applied"] = conf
+    def _apply(files: dict, deletes=None):
+        state["applied"] = files
+        state["deletes"] = deletes or []
         return {"success": True, "message": "reloaded", "details": None}
 
     def _status():

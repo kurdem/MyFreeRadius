@@ -10,6 +10,8 @@ Implements the safety guarantees from spec sections 15/16:
 """
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -37,8 +39,9 @@ def generate_pending(db: Session, *, author: str, summary: str | None = None) ->
     is created and the active one is returned unchanged.
     """
     version_no = _next_version(db)
-    content = config_generator.generate_clients_conf(db, version=version_no)
-    checksum = config_generator.checksum(content)
+    bundle = config_generator.generate_bundle(db, version=version_no)
+    content = json.dumps(bundle)
+    checksum = config_generator.bundle_checksum(bundle)
 
     active = get_active(db)
     if active is not None and active.checksum == checksum:
@@ -64,13 +67,20 @@ def generate_pending(db: Session, *, author: str, summary: str | None = None) ->
     return pending
 
 
+def _bundle(version: ConfigVersion) -> tuple[dict, list]:
+    data = json.loads(version.content)
+    return data.get("files", {}), data.get("deletes", [])
+
+
 def validate(version: ConfigVersion) -> dict:
-    return radius_agent.validate_config(version.content)
+    files, deletes = _bundle(version)
+    return radius_agent.validate_config(files, deletes)
 
 
 def activate(db: Session, version: ConfigVersion) -> dict:
     """Apply ``version`` to FreeRADIUS and update version states on success."""
-    result = radius_agent.apply_config(version.content)
+    files, deletes = _bundle(version)
+    result = radius_agent.apply_config(files, deletes)
     if not result.get("success"):
         version.state = ConfigState.FAILED
         db.commit()

@@ -7,6 +7,8 @@ Workflow exposed to the UI:
 """
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -54,15 +56,24 @@ def get_content(
     db: Session = Depends(get_db),
     _: User = Depends(require_any),
 ):
-    """Return raw config text for diff/preview.
+    """Return the config bundle (files + deletes) for diff/preview.
 
-    Note: this contains shared secrets in cleartext (FreeRADIUS requires them),
-    so it is restricted to authenticated users and never exported by default.
+    Note: this contains secrets in cleartext (FreeRADIUS requires them), so it
+    is restricted to authenticated users and never exported by default.
     """
     version = db.get(ConfigVersion, version_id)
     if not version:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Version not found")
-    return {"version": version.version, "content": version.content}
+    try:
+        bundle = json.loads(version.content)
+    except (ValueError, TypeError):
+        # Legacy single-file content stored before the bundle format.
+        bundle = {"files": {"clients.conf": version.content}, "deletes": []}
+    return {
+        "version": version.version,
+        "files": bundle.get("files", {}),
+        "deletes": bundle.get("deletes", []),
+    }
 
 
 @router.post("/{version_id}/validate", response_model=ValidationResult)

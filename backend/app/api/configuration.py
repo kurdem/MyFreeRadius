@@ -3,7 +3,8 @@
 Workflow exposed to the UI:
 
     generate (pending) -> validate -> activate
-                                   \-> rollback (to previous)
+                                   -> rollback / restore (to an earlier version)
+                                   -> delete (remove a stored version)
 """
 from __future__ import annotations
 
@@ -126,6 +127,45 @@ def activate(
         message=result.get("message", ""),
         version=version.version,
         details=result.get("details"),
+    )
+
+
+@router.post("/{version_id}/restore", response_model=ApplyResult)
+def restore(
+    version_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_admin),
+):
+    """Re-activate a specific historical version (append + activate)."""
+    try:
+        restored = configuration.restore(db, version_id=version_id, author=user.username)
+    except configuration.ConfigError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except AgentError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    audit.record(
+        db, username=user.username, action="RESTORE_CONFIG",
+        object_ref=f"v{restored.version}", source_ip=_client_ip(request),
+    )
+    return ApplyResult(success=True, message="Restored", version=restored.version)
+
+
+@router.delete("/{version_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_version(
+    version_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_admin),
+):
+    """Delete a stored configuration version (the active one is protected)."""
+    try:
+        number = configuration.delete_version(db, version_id=version_id)
+    except configuration.ConfigError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    audit.record(
+        db, username=user.username, action="DELETE_CONFIG",
+        object_ref=f"v{number}", source_ip=_client_ip(request),
     )
 
 

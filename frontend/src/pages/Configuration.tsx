@@ -4,6 +4,11 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
   Paper,
   Stack,
   Table,
@@ -11,12 +16,16 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import BuildIcon from "@mui/icons-material/Build";
 import CheckIcon from "@mui/icons-material/Check";
 import PublishIcon from "@mui/icons-material/Publish";
 import HistoryIcon from "@mui/icons-material/History";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import RestoreIcon from "@mui/icons-material/RestartAlt";
+import DeleteIcon from "@mui/icons-material/DeleteOutline";
 import { api, errorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 
@@ -44,6 +53,9 @@ export default function Configuration() {
   const [preview, setPreview] = useState<{ files: Record<string, string>; deletes: string[] } | null>(null);
   const [message, setMessage] = useState<{ severity: "success" | "error" | "info"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [viewing, setViewing] = useState<
+    { version: Version; files: Record<string, string>; deletes: string[] } | null
+  >(null);
 
   const loadHistory = () =>
     api.get<Version[]>("/configuration/history").then((r) => setHistory(r.data)).catch((e) => setMessage({ severity: "error", text: errorMessage(e) }));
@@ -137,6 +149,62 @@ export default function Configuration() {
     }
   };
 
+  const viewVersion = async (v: Version) => {
+    setBusy(true);
+    try {
+      const c = await api.get<{ files: Record<string, string>; deletes: string[] }>(
+        `/configuration/${v.id}/content`,
+      );
+      setViewing({ version: v, files: c.data.files, deletes: c.data.deletes });
+    } catch (e) {
+      setMessage({ severity: "error", text: errorMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restoreVersion = async (v: Version) => {
+    if (!window.confirm(`Activate configuration version ${v.version}? A new version is created from its content and applied to FreeRADIUS.`))
+      return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const r = await api.post<{ success: boolean; version?: number; details?: string; message: string }>(
+        `/configuration/${v.id}/restore`,
+      );
+      setMessage({
+        severity: r.data.success ? "success" : "error",
+        text: r.data.success
+          ? `Restored version ${v.version} (new active version ${r.data.version}).`
+          : r.data.details ?? r.data.message,
+      });
+      if (r.data.success) {
+        setPending(null);
+        setPreview(null);
+      }
+      loadHistory();
+    } catch (e) {
+      setMessage({ severity: "error", text: errorMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteVersion = async (v: Version) => {
+    if (!window.confirm(`Delete configuration version ${v.version}? This cannot be undone.`)) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await api.delete(`/configuration/${v.id}`);
+      setMessage({ severity: "success", text: `Deleted version ${v.version}.` });
+      loadHistory();
+    } catch (e) {
+      setMessage({ severity: "error", text: errorMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Box>
       <Typography variant="h4" sx={{ mb: 2 }}>
@@ -145,7 +213,9 @@ export default function Configuration() {
       <Alert severity="info" sx={{ mb: 2 }}>
         Workflow: <b>Generate</b> a candidate from the current clients, <b>Validate</b>{" "}
         its syntax with FreeRADIUS, then <b>Activate</b> to reload. A failed activation
-        keeps the previous working configuration.
+        keeps the previous working configuration. In the history below you can{" "}
+        <b>view</b> any version, <b>activate</b> an earlier one, or <b>delete</b> old
+        versions (the active version is protected).
       </Alert>
 
       {message && (
@@ -214,6 +284,7 @@ export default function Configuration() {
             <TableCell>Author</TableCell>
             <TableCell>Change</TableCell>
             <TableCell>Created</TableCell>
+            <TableCell align="right">Actions</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -226,11 +297,46 @@ export default function Configuration() {
               <TableCell>{v.author ?? "-"}</TableCell>
               <TableCell>{v.change_summary ?? "-"}</TableCell>
               <TableCell>{new Date(v.created_at).toLocaleString()}</TableCell>
+              <TableCell align="right">
+                <Tooltip title="View content">
+                  <IconButton size="small" onClick={() => viewVersion(v)} disabled={busy}>
+                    <VisibilityIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                {isAdmin && (
+                  <Tooltip title={v.state === "active" ? "Already active" : "Activate this version"}>
+                    <span>
+                      <IconButton
+                        size="small"
+                        color="warning"
+                        onClick={() => restoreVersion(v)}
+                        disabled={busy || v.state === "active"}
+                      >
+                        <RestoreIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                )}
+                {isAdmin && (
+                  <Tooltip title={v.state === "active" ? "The active version cannot be deleted" : "Delete this version"}>
+                    <span>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => deleteVersion(v)}
+                        disabled={busy || v.state === "active"}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                )}
+              </TableCell>
             </TableRow>
           ))}
           {history.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5}>
+              <TableCell colSpan={6}>
                 <Typography color="text.secondary" sx={{ py: 2 }}>
                   No configuration versions yet.
                 </Typography>
@@ -239,6 +345,46 @@ export default function Configuration() {
           )}
         </TableBody>
       </Table>
+
+      <Dialog open={!!viewing} onClose={() => setViewing(null)} maxWidth="md" fullWidth>
+        <DialogTitle>Configuration v{viewing?.version.version}</DialogTitle>
+        <DialogContent dividers>
+          {viewing &&
+            Object.entries(viewing.files).map(([path, content]) => (
+              <Box key={path} sx={{ mb: 2 }}>
+                <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 600 }}>
+                  {path}
+                </Typography>
+                <Box
+                  component="pre"
+                  sx={{
+                    fontSize: 13,
+                    overflow: "auto",
+                    m: 0,
+                    mt: 0.5,
+                    p: 1.5,
+                    borderRadius: 1,
+                    bgcolor: "grey.900",
+                    color: "grey.100",
+                  }}
+                >
+                  {content}
+                </Box>
+              </Box>
+            ))}
+          {viewing && viewing.deletes.length > 0 && (
+            <Typography variant="caption" color="error">
+              Removed on activate: {viewing.deletes.join(", ")}
+            </Typography>
+          )}
+          {viewing && Object.keys(viewing.files).length === 0 && (
+            <Typography color="text.secondary">This version has no files.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setViewing(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

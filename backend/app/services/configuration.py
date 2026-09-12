@@ -99,6 +99,32 @@ def activate(db: Session, version: ConfigVersion) -> dict:
     return result
 
 
+def _reapply(db: Session, source: ConfigVersion, *, author: str, summary: str) -> ConfigVersion:
+    """Create a fresh version from ``source``'s content and activate it.
+
+    History is preserved: instead of mutating an old row, we always append a new
+    version carrying the same content, then run the normal activate path (which
+    re-validates and rolls back inside the agent on failure).
+    """
+    version_no = _next_version(db)
+    restored = ConfigVersion(
+        version=version_no,
+        state=ConfigState.PENDING,
+        content=source.content,
+        checksum=source.checksum,
+        change_summary=summary,
+        author=author,
+    )
+    db.add(restored)
+    db.commit()
+    db.refresh(restored)
+
+    result = activate(db, restored)
+    if not result.get("success"):
+        raise ConfigError(result.get("message", "Activation failed"))
+    return restored
+
+
 def rollback(db: Session, *, author: str) -> ConfigVersion:
     """Re-activate the most recent PREVIOUS version."""
     previous = db.scalar(
@@ -108,22 +134,28 @@ def rollback(db: Session, *, author: str) -> ConfigVersion:
     )
     if previous is None:
         raise ConfigError("No previous configuration available to roll back to.")
+    return _reapply(db, previous, author=author, summary=f"Rollback to version {previous.version}")
 
-    # Create a fresh version entry from the previous content to preserve history.
-    version_no = _next_version(db)
-    restored = ConfigVersion(
-        version=version_no,
-        state=ConfigState.PENDING,
-        content=previous.content,
-        checksum=previous.checksum,
-        change_summary=f"Rollback to version {previous.version}",
-        author=author,
-    )
-    db.add(restored)
+
+def restore(db: Session, *, version_id: int, author: str) -> ConfigVersion:
+    """Re-activate a specific historical version chosen by the user."""
+    source = db.get(ConfigVersion, version_id)
+    if source is None:
+        raise ConfigError("Version not found.")
+    active = get_active(db)
+    if active is not None and active.id == source.id:
+        raise ConfigError("This version is already active.")
+    return _reapply(db, source, author=author, summary=f"Restore of version {source.version}")
+
+
+def delete_version(db: Session, *, version_id: int) -> int:
+    """Delete a stored version. The active configuration cannot be deleted."""
+    version = db.get(ConfigVersion, version_id)
+    if version is None:
+        raise ConfigError("Version not found.")
+    if version.state == ConfigState.ACTIVE:
+        raise ConfigError("The active configuration cannot be deleted.")
+    number = version.version
+    db.delete(version)
     db.commit()
-    db.refresh(restored)
-
-    result = activate(db, restored)
-    if not result.get("success"):
-        raise ConfigError(result.get("message", "Rollback activation failed"))
-    return restored
+    return number

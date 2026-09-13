@@ -53,7 +53,7 @@ const navItems: NavItem[] = [
   { label: "Logs", to: "/logs", icon: <ArticleIcon /> },
   { label: "Active Directory", to: "/active-directory", icon: <DomainIcon /> },
   { label: "MFA", to: "/mfa", icon: <VpnKeyIcon /> },
-  { label: "Policies", to: "/policies", icon: <PolicyIcon />, soon: true },
+  { label: "Policies", to: "/policies", icon: <PolicyIcon /> },
   { label: "Test Auth", to: "/test-auth", icon: <ScienceIcon /> },
   { label: "Certificates", to: "/certificates", icon: <VerifiedUserIcon /> },
   { label: "Backup", to: "/backup", icon: <BackupIcon /> },

@@ -15,7 +15,9 @@ rest {
         uri = "[[ backend_url ]]/api/v1/radius/authorize?token=$ENV{RADIUS_AGENT_TOKEN}"
         method = 'post'
         body = 'json'
-        data = '{"username":"%{User-Name}","password":"%{User-Password}"}'
+        # client_shortname / nas_ip let the backend map the request to a client
+        # group for the authentication policy engine.
+        data = '{"username":"%{User-Name}","password":"%{User-Password}","client_shortname":"%{Client-Shortname}","nas_ip":"%{Packet-Src-IP-Address}"}'
     }
 
     pool {

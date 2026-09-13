@@ -10,12 +10,11 @@ Primary use case:
 VMware Horizon Connection Server  ──RADIUS/1812──▶  FreeRADIUS  ──LDAP(S)──▶  Active Directory
 ```
 
-> **Project status — Phases 1–6 implemented.**
+> **Project status — Phases 1–7 implemented.**
 > This repository delivers a working end-to-end appliance: RADIUS client
 > management, Active Directory integration, TOTP MFA, certificate management,
-> backup/restore, a setup wizard and monitoring. The remaining planned item
-> (authentication policies) is shown in the UI as **Coming Soon**, never as fake
-> functionality. See the full plan in [`docs/roadmap.md`](docs/roadmap.md).
+> backup/restore, a setup wizard, monitoring, and an authentication policy
+> engine. See the full plan in [`docs/roadmap.md`](docs/roadmap.md).
 
 ---
 
@@ -42,6 +41,7 @@ VMware Horizon Connection Server  ──RADIUS/1812──▶  FreeRADIUS  ──
 | **Backup / restore** of the full configuration (secrets kept encrypted; optional passphrase) | ✅ (Phase 5) |
 | **Setup wizard** (guided first-run: admin → AD → Horizon client → group → activate → test) | ✅ |
 | **Monitoring / metrics**: Prometheus `/metrics`, deep `/health/detailed`, in-app Monitoring page, optional Prometheus + Grafana profile with alert rules | ✅ (Phase 6) |
+| **Authentication policies**: ordered first-match rules (client group + AD group → allow/deny + reply attributes), enforced in the backend | ✅ (Phase 7) |
 
 See [`docs/`](docs/) for architecture, security and Horizon guides.
 
@@ -145,6 +145,7 @@ python freeradius/control_agent/test_agent.py   # control-agent logic (fake radi
 - [VMware Horizon integration](docs/horizon.md)
 - [Active Directory](docs/active-directory.md)
 - [Multi-Factor Authentication (TOTP)](docs/mfa.md)
+- [Authentication Policies](docs/policies.md)
 - [Backup & Restore](docs/backup.md)
 - [Monitoring & Metrics](docs/monitoring.md)
 - [Security](docs/security.md)

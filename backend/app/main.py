@@ -21,6 +21,7 @@ from app.api import (
     logs,
     metrics,
     mfa,
+    policies,
     radius,
     setup,
     users,
@@ -104,6 +105,7 @@ app.include_router(configuration.router, prefix=API)
 app.include_router(active_directory.router, prefix=API)
 app.include_router(certificates.router, prefix=API)
 app.include_router(mfa.router, prefix=API)
+app.include_router(policies.router, prefix=API)
 app.include_router(radius.router, prefix=API)
 app.include_router(backup.router, prefix=API)
 app.include_router(setup.router, prefix=API)

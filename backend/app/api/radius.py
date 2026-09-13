@@ -21,6 +21,7 @@ import secrets
 import urllib.parse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -79,7 +80,8 @@ def _rlm_value(v):
 
 def _parse_body(raw: bytes, content_type: str) -> dict:
     text = raw.decode("utf-8", "replace").strip()
-    result = {"username": None, "password": None, "token": None}
+    result = {"username": None, "password": None, "token": None,
+              "nas_ip": None, "client_shortname": None}
     if not text:
         return result
     if "json" in content_type or text.startswith("{"):
@@ -92,6 +94,8 @@ def _parse_body(raw: bytes, content_type: str) -> dict:
         result["username"] = obj.get("username")
         result["password"] = obj.get("password")
         result["token"] = obj.get("token")
+        result["nas_ip"] = obj.get("nas_ip")
+        result["client_shortname"] = obj.get("client_shortname")
         # rlm_rest native attribute names (case-insensitive-ish lookups).
         for key in ("User-Name", "user-name", "Stripped-User-Name"):
             if result["username"] is None and key in obj:
@@ -99,6 +103,12 @@ def _parse_body(raw: bytes, content_type: str) -> dict:
         for key in ("User-Password", "user-password", "Cleartext-Password"):
             if result["password"] is None and key in obj:
                 result["password"] = _rlm_value(obj[key])
+        for key in ("Packet-Src-IP-Address", "NAS-IP-Address"):
+            if result["nas_ip"] is None and key in obj:
+                result["nas_ip"] = _rlm_value(obj[key])
+        for key in ("Client-Shortname", "NAS-Identifier"):
+            if result["client_shortname"] is None and key in obj:
+                result["client_shortname"] = _rlm_value(obj[key])
         return result
     # Form-encoded fallback.
     parsed = urllib.parse.parse_qs(text)
@@ -112,7 +122,33 @@ def _parse_body(raw: bytes, content_type: str) -> dict:
     result["username"] = _f("username", "User-Name")
     result["password"] = _f("password", "User-Password")
     result["token"] = _f("token")
+    result["nas_ip"] = _f("nas_ip", "Packet-Src-IP-Address", "NAS-IP-Address")
+    result["client_shortname"] = _f("client_shortname", "Client-Shortname", "NAS-Identifier")
     return result
+
+
+def _resolve_client_group(db: Session, *, shortname: str | None, nas_ip: str | None) -> int | None:
+    """Map the incoming RADIUS client to its client-group id (best effort)."""
+    from app.models import RadiusClient
+
+    client = None
+    if shortname:
+        client = db.scalar(select(RadiusClient).where(RadiusClient.name == shortname))
+    if client is None and nas_ip:
+        # Exact-IP match only; CIDR clients are matched by shortname above.
+        client = db.scalar(select(RadiusClient).where(RadiusClient.ipaddr == nas_ip))
+    return client.group_id if client is not None else None
+
+
+def _reply_json(reply_attributes: list[dict]) -> dict:
+    """Format reply attributes the way rlm_rest applies them (reply: list)."""
+    out: dict = {"result": "accept"}
+    for attr in reply_attributes:
+        name = attr.get("name")
+        if not name:
+            continue
+        out[f"reply:{name}"] = {"value": attr.get("value", ""), "op": ":="}
+    return out
 
 
 def _token_from_headers(request: Request) -> str | None:
@@ -164,7 +200,12 @@ async def authorize(
         response.status_code = status.HTTP_401_UNAUTHORIZED
         return {"result": "reject", "reason": "missing username"}
 
-    accept, reason = radius_auth.authorize(db, username, password)
+    client_group_id = _resolve_client_group(
+        db, shortname=data.get("client_shortname"), nas_ip=data.get("nas_ip")
+    )
+    accept, reason, reply = radius_auth.authorize(
+        db, username, password, client_group_id=client_group_id
+    )
     metrics.AUTH_TOTAL.labels(result="accept" if accept else "reject").inc()
     audit.record(
         db, username=username, action="RADIUS_AUTHORIZE",
@@ -174,4 +215,4 @@ async def authorize(
     if not accept:
         response.status_code = status.HTTP_401_UNAUTHORIZED
         return {"result": "reject", "reason": reason}
-    return {"result": "accept"}
+    return _reply_json(reply)

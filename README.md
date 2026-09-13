@@ -10,11 +10,12 @@ Primary use case:
 VMware Horizon Connection Server  ──RADIUS/1812──▶  FreeRADIUS  ──LDAP(S)──▶  Active Directory
 ```
 
-> **Project status — Phases 1 & 2 implemented.**
-> This repository currently delivers a working end-to-end base plus real RADIUS
-> client management. Active Directory, authentication policies, certificate
-> management and end-to-end auth tests are planned for later phases and are
-> shown in the UI as **Coming Soon** (never as fake functionality).
+> **Project status — Phases 1–6 implemented.**
+> This repository delivers a working end-to-end appliance: RADIUS client
+> management, Active Directory integration, TOTP MFA, certificate management,
+> backup/restore, a setup wizard and monitoring. The remaining planned item
+> (authentication policies) is shown in the UI as **Coming Soon**, never as fake
+> functionality. See the full plan in [`docs/roadmap.md`](docs/roadmap.md).
 
 ---
 
@@ -137,6 +138,8 @@ python freeradius/control_agent/test_agent.py   # control-agent logic (fake radi
 
 ## Documentation
 
+- [Roadmap](docs/roadmap.md)
+- [Feature overview (interactive)](https://claude.ai/code/artifact/3ef1f268-d325-4cfa-a20f-c2686b39b3e0)
 - [Architecture](docs/architecture.md)
 - [Installation](docs/installation.md)
 - [VMware Horizon integration](docs/horizon.md)

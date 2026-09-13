@@ -18,7 +18,7 @@ import Users from "./pages/Users";
 import Enroll from "./pages/Enroll";
 import Branding from "./pages/Branding";
 import Monitoring from "./pages/Monitoring";
-import ComingSoon from "./pages/ComingSoon";
+import Policies from "./pages/Policies";
 import type { ReactNode } from "react";
 
 function Protected({ children }: { children: ReactNode }) {
@@ -46,18 +46,7 @@ export default function App() {
       <Route path="/logs" element={<Protected><Logs /></Protected>} />
       <Route path="/active-directory" element={<Protected><ActiveDirectory /></Protected>} />
       <Route path="/mfa" element={<Protected><Mfa /></Protected>} />
-      <Route
-        path="/policies"
-        element={
-          <Protected>
-            <ComingSoon
-              title="Authentication Policies"
-              phase="Phase 4"
-              description="Policy engine mapping RADIUS client groups + AD groups to allow/deny decisions and reply attributes."
-            />
-          </Protected>
-        }
-      />
+      <Route path="/policies" element={<Protected><Policies /></Protected>} />
       <Route path="/certificates" element={<Protected><Certificates /></Protected>} />
       <Route path="/backup" element={<Protected><Backup /></Protected>} />
       <Route path="/wizard" element={<Protected><Wizard /></Protected>} />

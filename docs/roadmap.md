@@ -84,6 +84,13 @@ Real RADIUS client management with a safe configuration lifecycle.
 - Optional `monitoring` compose profile: Prometheus + Grafana (provisioned
   datasource) with starter alert rules. See [`monitoring.md`](monitoring.md).
 
+## Phase 7 — Authentication Policies ✅
+
+- Ordered, first-match policy engine mapping RADIUS client group + AD group to
+  allow/deny decisions plus optional RADIUS reply attributes.
+- Enforced in the backend (rlm_rest); the generated `manager` site delegates to
+  the backend whenever policies (or MFA) are active. See [`policies.md`](policies.md).
+
 ---
 
 ## Cross-cutting hardening ✅
@@ -99,6 +106,6 @@ Applied across phases rather than as a single milestone.
 
 ## Planned / open ⏳
 
-- **Authentication Policies** — a policy engine mapping RADIUS client groups +
-  AD groups to allow/deny decisions and reply attributes. Currently shown in the
-  UI as *Coming Soon*, never as fake functionality.
+All originally planned phases are implemented. Future ideas (not yet scheduled):
+accounting/session reporting, and a policy simulator ("would user X on client Y
+be allowed?").

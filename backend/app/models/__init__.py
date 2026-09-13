@@ -10,6 +10,7 @@ from app.models.mfa_enrollment import MfaEnrollmentToken
 from app.models.certificate import CaCertificate
 from app.models.app_state import AppState
 from app.models.branding import BrandingConfig
+from app.models.policy import AuthPolicy, PolicyAction
 
 __all__ = [
     "Base",
@@ -28,4 +29,6 @@ __all__ = [
     "CaCertificate",
     "AppState",
     "BrandingConfig",
+    "AuthPolicy",
+    "PolicyAction",
 ]

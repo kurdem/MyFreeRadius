@@ -18,7 +18,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import ADConfig, ADGroup, GroupAccess, RadiusClient
+from app.models import ADConfig, ADGroup, AuthPolicy, GroupAccess, RadiusClient
 from app.security.crypto import decrypt_secret
 from app.services import cert_service
 
@@ -148,21 +148,27 @@ def generate_bundle(db: Session, *, version: int, backend_url: str = "http://bac
 
     States:
       * AD disabled          -> only ``clients.conf`` (stock "default" handles them).
-      * AD enabled, MFA off   -> ``clients.conf`` (routed to "manager") + ldap
+      * AD enabled, plain     -> ``clients.conf`` (routed to "manager") + ldap
                                  module + "manager" site (PAP-bind + group authz).
-      * AD enabled, MFA on    -> ``clients.conf`` (routed) + rest module + "manager"
-                                 site delegating to the backend (TOTP + AD).
+      * AD enabled, MFA and/or policies -> ``clients.conf`` (routed) + rest module
+                                 + "manager" site delegating to the backend (TOTP,
+                                 AD, and the authentication policy engine).
     """
     ad = db.get(ADConfig, 1)
     ad_enabled = ad is not None and ad.enabled
     mfa_enabled = ad is not None and ad.enabled and ad.mfa_enabled
+    # Any enabled policy makes the backend the decision point too.
+    policies_active = ad_enabled and (
+        db.scalar(select(AuthPolicy.id).where(AuthPolicy.enabled.is_(True)).limit(1)) is not None
+    )
+    delegate_to_backend = mfa_enabled or policies_active
 
     virtual_server = "manager" if ad_enabled else None
     files: dict[str, str] = {
         "clients.conf": generate_clients_conf(db, version=version, virtual_server=virtual_server),
     }
 
-    if mfa_enabled:
+    if delegate_to_backend:
         files["mods-enabled/rest"] = generate_rest_module(backend_url)
         files["sites-enabled/manager"] = generate_manager_site_rest()
     elif ad_enabled:

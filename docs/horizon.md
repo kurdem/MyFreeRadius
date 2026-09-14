@@ -1,4 +1,7 @@
-# VMware Horizon integration
+# Omnissa Horizon integration
+
+> Omnissa Horizon is the current name of the product formerly known as VMware
+> Horizon (vendor Omnissa). This guide applies to both.
 
 This guide separates **Horizon-side** configuration from **FreeRADIUS-side**
 configuration. FreeRADIUS Manager handles the FreeRADIUS side; the RADIUS
@@ -15,7 +18,7 @@ Horizon Client ─▶ Connection Server ─RADIUS/1812─▶ FreeRADIUS ─LDAP(
    - **IP address**: the Connection Server's IP (the source of RADIUS packets),
      e.g. `10.10.20.11`
    - **Shared secret**: a strong secret (8–128 chars, no quotes/backslashes/spaces)
-   - **NAS Type**: `vmware`
+   - **NAS Type**: `omnissa`
 2. Optionally group multiple Connection Servers (e.g. `Horizon Cluster Siegen`)
    under **Client Groups**.
 3. **Configuration → Generate Candidate → Validate → Activate**.
@@ -24,7 +27,7 @@ Horizon Client ─▶ Connection Server ─RADIUS/1812─▶ FreeRADIUS ─LDAP(
 > If Connection Servers sit behind NAT/load balancers, use the address packets
 > actually originate from (a CIDR is allowed).
 
-## Horizon side (VMware Horizon Console)
+## Horizon side (Omnissa Horizon Console)
 
 On the Connection Server (**Settings → Servers → Connection Servers → Edit →
 Authentication**, or the 2-factor authentication settings), configure a RADIUS

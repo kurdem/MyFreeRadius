@@ -1,13 +1,16 @@
 # FreeRADIUS Manager
 
-A Docker-based management appliance that lets Windows / VMware Horizon
+A Docker-based management appliance that lets Windows / Omnissa Horizon
 administrators run and configure a FreeRADIUS server through a modern web
 interface — without editing FreeRADIUS config files by hand.
+
+Omnissa Horizon is the current name of the product formerly known as VMware
+Horizon (vendor Omnissa).
 
 Primary use case:
 
 ```
-VMware Horizon Connection Server  ──RADIUS/1812──▶  FreeRADIUS  ──LDAP(S)──▶  Active Directory
+Omnissa Horizon Connection Server  ──RADIUS/1812──▶  FreeRADIUS  ──LDAP(S)──▶  Active Directory
 ```
 
 > **Project status — Phases 1–7 implemented.**
@@ -99,7 +102,7 @@ RADIUS is served on the host at `udp/1812` (auth) and `udp/1813` (accounting).
 
 1. Log in as the bootstrap administrator.
 2. **RADIUS Clients → Add Client** — add each Horizon Connection Server
-   (name, IP, shared secret, NAS type = `vmware`).
+   (name, IP, shared secret, NAS type = `omnissa`).
 3. **Configuration → Generate Candidate → Validate → Activate**.
 4. **Logs** — watch RADIUS activity live.
 
@@ -139,10 +142,10 @@ python freeradius/control_agent/test_agent.py   # control-agent logic (fake radi
 ## Documentation
 
 - [Roadmap](docs/roadmap.md)
-- [Feature overview (interactive)](https://claude.ai/code/artifact/3ef1f268-d325-4cfa-a20f-c2686b39b3e0)
+- [Feature overview (interactive)](https://claude.ai/code/artifact/b195f14a-6b8c-4fca-a0ec-5e02b587f059)
 - [Architecture](docs/architecture.md)
 - [Installation](docs/installation.md)
-- [VMware Horizon integration](docs/horizon.md)
+- [Omnissa Horizon integration](docs/horizon.md)
 - [Active Directory](docs/active-directory.md)
 - [Multi-Factor Authentication (TOTP)](docs/mfa.md)
 - [Authentication Policies](docs/policies.md)

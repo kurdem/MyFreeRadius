@@ -61,7 +61,7 @@ export default function Login() {
             {branding.title}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Sign in to manage RADIUS for VMware Horizon &amp; Active Directory.
+            Sign in to manage RADIUS for Omnissa Horizon &amp; Active Directory.
           </Typography>
           <form onSubmit={submit}>
             <TextField

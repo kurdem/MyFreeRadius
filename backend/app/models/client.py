@@ -36,7 +36,8 @@ class RadiusClient(Base, TimestampMixin):
     ipaddr: Mapped[str] = mapped_column(String(64), nullable=False)
     shared_secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # "other" is the safe FreeRADIUS default; "vmware" documents intent for Horizon.
+    # "other" is the safe FreeRADIUS default; "omnissa" documents intent for
+    # Omnissa Horizon (formerly VMware Horizon).
     nas_type: Mapped[str] = mapped_column(String(32), default="other", nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     location: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -46,7 +47,7 @@ class RadiusClient(Base, TimestampMixin):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # BlastRADIUS mitigation (CVE-2024-3596): require a Message-Authenticator on
-    # incoming requests. Recommended for clients that send it (e.g. VMware
+    # incoming requests. Recommended for clients that send it (e.g. Omnissa
     # Horizon / UAG). Emitted as `require_message_authenticator = yes`.
     require_message_authenticator: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False

@@ -16,7 +16,17 @@ _NAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,120}$")
 # Shared secret: printable ASCII without quotes, backslashes, or whitespace that
 # would break the quoted config token. Keeps secrets robust and injection-safe.
 _SECRET_RE = re.compile(r'^[A-Za-z0-9!@#$%^&*()_+\-=\[\]{}:;,.?~]{8,128}$')
-_ALLOWED_NAS_TYPES = {"other", "vmware", "cisco", "juniper", "mikrotik", "aruba"}
+_ALLOWED_NAS_TYPES = {"other", "omnissa", "cisco", "juniper", "mikrotik", "aruba"}
+# Backward-compatible aliases normalised to the canonical value. "vmware" was the
+# old name before VMware Horizon became Omnissa Horizon.
+_NAS_ALIASES = {"vmware": "omnissa"}
+
+
+def _normalise_nas(value: str) -> str:
+    value = _NAS_ALIASES.get(value, value)
+    if value not in _ALLOWED_NAS_TYPES:
+        raise ValueError(f"nas_type must be one of: {', '.join(sorted(_ALLOWED_NAS_TYPES))}")
+    return value
 
 
 def _validate_ip_or_cidr(value: str) -> str:
@@ -40,7 +50,7 @@ class ClientBase(BaseModel):
     location: str | None = Field(default=None, max_length=120)
     tags: str | None = Field(default=None, max_length=255)
     enabled: bool = True
-    # None on create -> resolved by NAS type (on for vmware). Explicit value wins.
+    # None on create -> resolved by NAS type (on for omnissa). Explicit value wins.
     require_message_authenticator: bool | None = None
     group_id: int | None = None
 
@@ -61,9 +71,7 @@ class ClientBase(BaseModel):
     @field_validator("nas_type")
     @classmethod
     def _valid_nas(cls, v: str) -> str:
-        if v not in _ALLOWED_NAS_TYPES:
-            raise ValueError(f"nas_type must be one of: {', '.join(sorted(_ALLOWED_NAS_TYPES))}")
-        return v
+        return _normalise_nas(v)
 
 
 class ClientCreate(ClientBase):
@@ -113,11 +121,7 @@ class ClientUpdate(BaseModel):
     @field_validator("nas_type")
     @classmethod
     def _valid_nas(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
-        if v not in _ALLOWED_NAS_TYPES:
-            raise ValueError(f"nas_type must be one of: {', '.join(sorted(_ALLOWED_NAS_TYPES))}")
-        return v
+        return None if v is None else _normalise_nas(v)
 
     @field_validator("shared_secret")
     @classmethod

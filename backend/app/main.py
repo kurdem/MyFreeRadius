@@ -55,7 +55,7 @@ settings = get_settings()
 app = FastAPI(
     title="FreeRADIUS Manager API",
     version=__version__,
-    description="Management API for a FreeRADIUS appliance (Horizon View / AD).",
+    description="Management API for a FreeRADIUS appliance (Omnissa Horizon / AD).",
     lifespan=lifespan,
 )
 

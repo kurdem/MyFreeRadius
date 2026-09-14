@@ -81,7 +81,7 @@ export default function Wizard() {
 
   const addClient = () =>
     run(async () => {
-      await api.post("/clients", { ...client, nas_type: "vmware" });
+      await api.post("/clients", { ...client, nas_type: "omnissa" });
       setMsg({ s: "success", t: `Client ${client.name} added.` });
       next();
     });
@@ -131,7 +131,7 @@ export default function Wizard() {
     <Box sx={{ maxWidth: 760 }}>
       <Typography variant="h4" sx={{ mb: 1 }}>Setup Wizard</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Get FreeRADIUS ready for VMware Horizon &amp; Active Directory. Each step
+        Get FreeRADIUS ready for Omnissa Horizon &amp; Active Directory. Each step
         can be skipped if you've already done it elsewhere.
       </Typography>
 

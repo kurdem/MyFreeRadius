@@ -146,7 +146,7 @@ def test_ldap_bundle_includes_ca(admin_client, fake_agent):
     admin_client.post(
         "/api/v1/clients",
         json={"name": "CertCS", "ipaddr": "10.10.90.5", "shared_secret": "S3cretForHorizon",
-              "nas_type": "vmware"},
+              "nas_type": "omnissa"},
         headers=admin_client.csrf_headers,
     )
     pending = admin_client.get("/api/v1/configuration/pending").json()

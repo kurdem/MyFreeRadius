@@ -67,10 +67,10 @@ def create_client(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="group_id does not exist")
 
     # Default the BlastRADIUS requirement from the NAS type when unspecified:
-    # VMware Horizon / UAG sends a Message-Authenticator, so require it there.
+    # Omnissa Horizon / UAG sends a Message-Authenticator, so require it there.
     require_msg_auth = payload.require_message_authenticator
     if require_msg_auth is None:
-        require_msg_auth = payload.nas_type == "vmware"
+        require_msg_auth = payload.nas_type == "omnissa"
 
     client = RadiusClient(
         name=payload.name,

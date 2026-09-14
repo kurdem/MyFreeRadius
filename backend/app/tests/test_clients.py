@@ -7,10 +7,17 @@ def _create(admin_client, **overrides):
         "name": "Horizon-CS01",
         "ipaddr": "10.10.20.11",
         "shared_secret": "S3cretForHorizon",
-        "nas_type": "vmware",
+        "nas_type": "omnissa",
     }
     payload.update(overrides)
     return admin_client.post("/api/v1/clients", json=payload, headers=admin_client.csrf_headers)
+
+
+def test_nas_type_vmware_alias_normalised(admin_client):
+    # The legacy "vmware" value is accepted and stored as the new "omnissa".
+    r = _create(admin_client, name="LegacyNas", nas_type="vmware")
+    assert r.status_code == 201, r.text
+    assert r.json()["nas_type"] == "omnissa"
 
 
 def test_create_and_list_client(admin_client):

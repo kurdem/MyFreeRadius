@@ -7,7 +7,7 @@ import json
 def _make_client(admin_client, name, ip):
     return admin_client.post(
         "/api/v1/clients",
-        json={"name": name, "ipaddr": ip, "shared_secret": "S3cretForHorizon", "nas_type": "vmware"},
+        json={"name": name, "ipaddr": ip, "shared_secret": "S3cretForHorizon", "nas_type": "omnissa"},
         headers=admin_client.csrf_headers,
     )
 

@@ -54,6 +54,24 @@ def _apply_additive_migrations() -> None:
                 )
 
 
+def _apply_data_migrations() -> None:
+    """Idempotent data fixups for renamed values."""
+    inspector = inspect(engine)
+    if "radius_clients" not in set(inspector.get_table_names()):
+        return
+    with engine.begin() as conn:
+        # "vmware" NAS type was renamed to "omnissa" (VMware Horizon -> Omnissa Horizon).
+        result = conn.execute(
+            text("UPDATE radius_clients SET nas_type = 'omnissa' WHERE nas_type = 'vmware'")
+        )
+        if result.rowcount:
+            logger.info(
+                "startup",
+                extra={"event": "migration_rename_value",
+                       "object": f"radius_clients.nas_type vmware->omnissa ({result.rowcount})"},
+            )
+
+
 def init_db() -> None:
     """Create tables if they do not exist, then apply additive migrations.
 
@@ -62,6 +80,7 @@ def init_db() -> None:
     """
     Base.metadata.create_all(bind=engine)
     _apply_additive_migrations()
+    _apply_data_migrations()
 
 
 def bootstrap_admin() -> None:

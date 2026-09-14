@@ -49,13 +49,13 @@ interface Group {
   name: string;
 }
 
-const NAS_TYPES = ["vmware", "other", "cisco", "juniper", "mikrotik", "aruba"];
+const NAS_TYPES = ["omnissa", "other", "cisco", "juniper", "mikrotik", "aruba"];
 
 const empty = {
   name: "",
   ipaddr: "",
   shared_secret: "",
-  nas_type: "vmware",
+  nas_type: "omnissa",
   description: "",
   location: "",
   tags: "",
@@ -254,7 +254,7 @@ export default function Clients() {
             >
               {NAS_TYPES.map((t) => (
                 <MenuItem key={t} value={t}>
-                  {t === "vmware" ? "vmware (VMware Horizon)" : t}
+                  {t === "omnissa" ? "omnissa (Omnissa Horizon)" : t}
                 </MenuItem>
               ))}
             </Select>
@@ -320,7 +320,7 @@ export default function Clients() {
             label="Require Message-Authenticator (BlastRADIUS mitigation)"
           />
           <Typography variant="caption" color="text.secondary" display="block">
-            Recommended for VMware Horizon / UAG, which send a Message-Authenticator.
+            Recommended for Omnissa Horizon / UAG, which send a Message-Authenticator.
             Leave off for clients that do not send one.
           </Typography>
         </DialogContent>

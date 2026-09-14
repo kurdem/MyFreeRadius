@@ -15,7 +15,7 @@ A visual, at-a-glance summary of everything the appliance offers — the auth da
 flow (Horizon → RADIUS → FreeRADIUS → AD), the feature areas, and the container
 stack — is published as a standalone page:
 
-**https://claude.ai/code/artifact/3ef1f268-d325-4cfa-a20f-c2686b39b3e0**
+**https://claude.ai/code/artifact/b195f14a-6b8c-4fca-a0ec-5e02b587f059**
 
 It is a companion to this roadmap: the page shows *what* the appliance does, this
 document tracks *when* each part landed.

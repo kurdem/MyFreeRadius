@@ -187,7 +187,7 @@ def test_active_policy_routes_to_backend_without_mfa(admin_client, fake_agent):
                             headers=admin_client.csrf_headers).json()
     admin_client.post("/api/v1/clients",
                       json={"name": "PolCS", "ipaddr": "10.20.0.5",
-                            "shared_secret": "S3cretForHorizon", "nas_type": "vmware"},
+                            "shared_secret": "S3cretForHorizon", "nas_type": "omnissa"},
                       headers=admin_client.csrf_headers)
     pending = admin_client.get("/api/v1/configuration/pending").json()
     files = admin_client.get(f"/api/v1/configuration/{pending['id']}/content").json()["files"]
